@@ -67,10 +67,13 @@ export default function PlayerPage() {
       .catch(() => setLoading(false));
   }, [id]);
 
-  // Set hero image with fallback chain
+  // Set hero image — try action shot first, fall back through options
   useEffect(() => {
     if (!id) return;
-    const action  = `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:action:hero:current.jpg/ar_4:3,g_auto/q_auto:best/v1/people/${id}/action/hero/current`;
+    // This URL requests a true action/in-game photo at large size
+    // The d_ parameter sets a generic action fallback if no photo exists
+    // Try landscape action shot (wider, shows full body better)
+    const action = `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:action:landscape:current.jpg/ar_16:9,g_auto/q_auto:best/v1/people/${id}/action/landscape/current`;
     setImgSrc(action);
   }, [id]);
 
@@ -118,7 +121,7 @@ export default function PlayerPage() {
         <style>{`
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { background: #050608; font-family: 'Barlow', sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-          .hero-img { width:100%; height:100%; object-fit:cover; object-position:center top; display:block; }
+          .hero-img { width:100%; height:100%; object-fit:cover; object-position:center 25%; display:block; transition:opacity .3s ease; }
           .tab-btn:hover { color: #f0f2f8 !important; }
           .sv-tile:hover { border-color: ${colors.primary} !important; transform: translateY(-2px); }
           .ext-link:hover { border-color: ${colors.primary} !important; transform: translateY(-2px); }
@@ -140,7 +143,14 @@ export default function PlayerPage() {
             className="hero-img"
             src={imgSrc}
             alt={player.fullName}
-            onError={() => setImgSrc(headshotUrl)}
+            onError={() => {
+              // fallback chain: landscape -> hero -> headshot
+              if (imgSrc.includes('landscape')) {
+                setImgSrc(`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:action:hero:current.jpg/w_1200,q_auto:best/v1/people/${id}/action/hero/current`);
+              } else {
+                setImgSrc(headshotUrl);
+              }
+            }}
           />
         </div>
         {/* Gradient overlay */}
@@ -295,7 +305,14 @@ export default function PlayerPage() {
 function HeroBg({ id, headshotUrl, imgSrc, setImgSrc }) {
   return (
     <div style={s.heroBgWrap}>
-      <img className="hero-img" src={imgSrc} alt="" onError={() => setImgSrc(headshotUrl)} />
+      <img className="hero-img" src={imgSrc} alt="" onError={() => {
+              // fallback chain: landscape -> hero -> headshot
+              if (imgSrc.includes('landscape')) {
+                setImgSrc(`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:action:hero:current.jpg/w_1200,q_auto:best/v1/people/${id}/action/hero/current`);
+              } else {
+                setImgSrc(headshotUrl);
+              }
+            }} />
     </div>
   );
 }
