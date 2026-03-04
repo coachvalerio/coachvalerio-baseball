@@ -231,11 +231,7 @@ export default function Home() {
               {loadingNews ? (
                 <div style={s.loadingText}>Loading news…</div>
               ) : news.length === 0 ? (
-                <div style={s.loadingText}>
-                  News feed requires a free API key from{' '}
-                  <a href="https://newsapi.org" target="_blank" rel="noopener" style={{ color: '#00c2a8' }}>newsapi.org</a>.
-                  Add it to your <code style={{ color: '#00c2a8' }}>.env.local</code> file as <code style={{ color: '#00c2a8' }}>NEWS_API_KEY=yourkey</code>.
-                </div>
+                <div style={s.loadingText}>Check back soon — latest MLB headlines will appear here.</div>
               ) : (
                 news.slice(0, 8).map((article, i) => (
                   <a key={i} href={article.url} target="_blank" rel="noopener" className="news-card" style={s.newsCard}>

@@ -1,30 +1,30 @@
 // pages/api/leaders.js
-// Fetches top 10 league leaders in multiple categories from MLB Stats API
-// battingAverage and stolenBases explicitly use playerPool=hitters to exclude pitchers
+// Fetches top 10 league leaders using correct MLB Stats API params
+// statGroup=hitting → position players only
+// statGroup=pitching → pitchers only
+// playerPool=Qualified → must meet minimum PA/IP thresholds
 
 export default async function handler(req, res) {
   const season = req.query.season ?? new Date().getFullYear();
 
-  // Each entry: [leaderCategory, extraParams]
-  // playerPool=qualified_hitters → position players only, must meet PA minimum
-  // playerPool=hitters           → position players only, no PA minimum
-  // playerPool=qualified_pitchers → pitchers only, must meet IP minimum
-  // playerPool=pitchers           → pitchers only, no IP minimum
+  // [leaderCategory, statGroup, playerPool]
   const CATEGORIES = [
-    ['battingAverage',     'playerPool=qualified_hitters'],
-    ['homeRuns',           'playerPool=hitters'],
-    ['rbi',                'playerPool=hitters'],
-    ['onBasePlusSlugging', 'playerPool=qualified_hitters'],
-    ['stolenBases',        'playerPool=hitters'],
-    ['earnedRunAverage',   'playerPool=qualified_pitchers'],
-    ['strikeouts',         'playerPool=pitchers'],
-    ['wins',               'playerPool=pitchers'],
+    ['battingAverage',      'hitting',  'Qualified'],
+    ['homeRuns',            'hitting',  'All'],
+    ['rbi',                 'hitting',  'All'],
+    ['onBasePlusSlugging',  'hitting',  'Qualified'],
+    ['stolenBases',         'hitting',  'All'],
+    ['earnedRunAverage',    'pitching', 'Qualified'],
+    ['strikeouts',          'pitching', 'All'],
+    ['wins',                'pitching', 'All'],
   ];
 
   try {
     const results = await Promise.all(
-      CATEGORIES.map(([cat, extra]) =>
-        fetch(`https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=${cat}&season=${season}&limit=10&sportId=1&${extra}`)
+      CATEGORIES.map(([cat, group, pool]) =>
+        fetch(
+          `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=${cat}&season=${season}&limit=10&sportId=1&statGroup=${group}&playerPool=${pool}`
+        )
           .then(r => r.json())
           .then(d => ({ [cat]: d.leagueLeaders?.[0]?.leaders ?? [] }))
           .catch(() => ({ [cat]: [] }))
