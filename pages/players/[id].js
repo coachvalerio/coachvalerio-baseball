@@ -518,43 +518,13 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
       {odds?.available ? (
         <OddsDisplay odds={odds} isPitcher={isPitcher} colors={colors} />
       ) : (
-        <div style={{...s.card,padding:'1.5rem'}}>
-          <div style={{display:'flex',alignItems:'flex-start',gap:'1rem',flexWrap:'wrap'}}>
-            <div style={{fontSize:'2rem'}}>🎲</div>
-            <div style={{flex:1}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',letterSpacing:'.1em',textTransform:'uppercase',color:'#f0f2f8',marginBottom:'.5rem'}}>
-                Activate Betting Odds
-              </div>
-              <div style={{fontSize:'.85rem',lineHeight:1.75,color:'#5c6070',marginBottom:'1rem'}}>
-                Live odds from FanDuel, DraftKings, and BetMGM are available through <strong style={{color:'#f0f2f8'}}>The Odds API</strong> (free tier: 500 requests/month).
-              </div>
-              <div style={{background:'#0a0c10',border:'1px solid #1e2028',borderRadius:'6px',padding:'1rem',fontFamily:'monospace',fontSize:'.82rem',color:'#00c2a8',marginBottom:'1rem'}}>
-                1. Go to <span style={{color:'#f5a623'}}>the-odds-api.com</span> → sign up free<br/>
-                2. Copy your API key<br/>
-                3. Open <span style={{color:'#f5a623'}}>.env.local</span> in VS Code<br/>
-                4. Add: <span style={{color:'#f0f2f8'}}>ODDS_API_KEY=your_key_here</span><br/>
-                5. git add . → git commit → git push
-              </div>
-              <div style={{fontSize:'.82rem',color:'#5c6070'}}>
-                Once active, this section shows player props: {isPitcher ? 'strikeout O/U, innings pitched, first 5 innings lines, NRFI' : 'hit O/U, home run odds, RBI props, 2+ hits, total bases'} — pulled live every hour.
-              </div>
-            </div>
+        <div style={{...s.card,padding:'1.5rem',textAlign:'center'}}>
+          <div style={{fontSize:'2rem',marginBottom:'.75rem'}}>🎲</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',letterSpacing:'.1em',textTransform:'uppercase',color:'#f0f2f8',marginBottom:'.5rem'}}>
+            Betting Odds Coming Soon
           </div>
-          {/* Preview of what it'll look like */}
-          <div style={{marginTop:'1.5rem',paddingTop:'1.5rem',borderTop:'1px solid #1e2028'}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.85rem'}}>Preview — sample layout</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))',gap:'.75rem',opacity:.35}}>
-              {(isPitcher
-                ? ['Strikeouts O/U 7.5','Innings Pitched O/U 5.5','Win (Moneyline)','NRFI','K in 1st Inning']
-                : ['To Get a Hit','Home Run','2+ Hits','RBI','Total Bases O/U 1.5']
-              ).map((label,i)=>(
-                <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.4rem'}}>{label}</div>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.8rem',color:'#f0f2f8'}}>-115</div>
-                  <div style={{fontSize:'.68rem',color:'#5c6070',marginTop:'.2rem'}}>FanDuel</div>
-                </div>
-              ))}
-            </div>
+          <div style={{fontSize:'.85rem',color:'#5c6070'}}>
+            Live FanDuel & DraftKings player props will appear here on game days.
           </div>
         </div>
       )}
@@ -814,27 +784,7 @@ function HighlightsTab({ id, player, highlights, colors }) {
       )}
 
       {/* YouTube section */}
-      <div style={{...hts.subLabel, marginTop:'2rem'}}>YouTube Search</div>
-      <div style={{...s.infoBox, marginBottom:'1rem'}}>
-        YouTube highlights require a free Google API key (YouTube Data API v3).
-        <strong style={{color:'#f0f2f8'}}> Get yours free at </strong>
-        <a href="https://console.developers.google.com" target="_blank" rel="noopener" style={{color:colors.primary}}>console.developers.google.com</a>
-        {' '}→ Create Project → Enable YouTube Data API v3 → Create Credentials → API Key.
-        Then add <code style={{color:colors.primary}}>YOUTUBE_API_KEY=yourkey</code> to <code style={{color:colors.primary}}>.env.local</code>.
-        <br/><br/>Or enter your key below to search right now:
-      </div>
-      <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
-        <input
-          style={{...s.searchInput,flex:1,minWidth:'200px',padding:'.6rem 1rem'}}
-          placeholder="Paste your YouTube API key here to search now…"
-          value={ytKey}
-          onChange={e=>setYtKey(e.target.value)}
-        />
-        <button onClick={searchYT} disabled={ytLoading}
-          style={{padding:'.6rem 1.25rem',background:colors.primary+'22',border:`1px solid ${colors.primary}`,borderRadius:'6px',color:colors.primary,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.82rem',letterSpacing:'.1em',textTransform:'uppercase',cursor:'pointer',whiteSpace:'nowrap'}}>
-          {ytLoading ? 'Searching…' : '▶ Search YouTube'}
-        </button>
-      </div>
+      <div style={{...hts.subLabel, marginTop:'2rem'}}>YouTube Highlights</div>
       {ytResults.length > 0 && (
         <div style={hts.videoGrid}>
           {ytResults.map((v,i) => (
@@ -1340,10 +1290,7 @@ function SocialTab({ player, colors }) {
       <div style={{...s.secLabel,color:colors.primary}}>Social — X / Twitter</div>
 
       {/* Header info about X API */}
-      <div style={s.infoBox}>
-        <strong style={{color:'#f0f2f8'}}>Live X/Twitter feed</strong> requires a paid X API subscription ($100/month Basic tier).
-        Below you can view the live search directly on X, or we embed the X search timeline widget which works without any API key.
-      </div>
+
 
       {/* Quick action buttons */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'.75rem',marginBottom:'2rem'}}>
