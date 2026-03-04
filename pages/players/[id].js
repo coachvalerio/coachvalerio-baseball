@@ -910,8 +910,8 @@ function HRLog({ hrLog, colors, player }) {
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
                 <thead>
                   <tr style={{borderBottom:'1px solid #1e2028'}}>
-                    {['#','Date','Opponent','Pitcher','Pitch Type','Velo (mph)','Exit Velo','Distance','Direction','Inning'].map(h=>(
-                      <th key={h} style={{...s.th,textAlign:h==='#'||h==='Velo (mph)'||h==='Exit Velo'||h==='Distance'?'right':'left'}}>{h}</th>
+                    {['#','Date','Game','Pitcher','Pitch Type','Pitch Velo','Exit Velo','Distance','Launch Angle','Direction','Inning','Count'].map(h=>(
+                      <th key={h} style={{...s.th,textAlign:['#','Pitch Velo','Exit Velo','Distance','Launch Angle'].includes(h)?'right':'left'}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -920,18 +920,23 @@ function HRLog({ hrLog, colors, player }) {
                     <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
                       <td style={{...s.td,textAlign:'right',color:colors.accent,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</td>
                       <td style={{...s.td,textAlign:'left',color:'#f0f2f8',whiteSpace:'nowrap'}}>{hr.date??'—'}</td>
-                      <td style={{...s.td,textAlign:'left',color:'#b8bdd0'}}>{hr.opponent??'—'}</td>
-                      <td style={{...s.td,textAlign:'left',color:'#b8bdd0'}}>{hr.pitcher??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#b8bdd0',fontSize:'.78rem',whiteSpace:'nowrap'}}>{hr.opponent??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#f0f2f8',whiteSpace:'nowrap'}}>
+                        {hr.pitcher??'—'}
+                        {hr.pitcherHand&&hr.pitcherHand!=='—'&&<span style={{marginLeft:'.3rem',fontSize:'.68rem',color:'#5c6070'}}>({hr.pitcherHand})</span>}
+                      </td>
                       <td style={{...s.td,textAlign:'left'}}>
                         <span style={{background:pitchTypeColor(hr.pitchType)+'33',color:pitchTypeColor(hr.pitchType),padding:'.1rem .4rem',borderRadius:'3px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700}}>
                           {hr.pitchType??'—'}
                         </span>
                       </td>
-                      <td style={{...s.td,color:veloColor(hr.pitchVelo)}}>{hr.pitchVelo?`${hr.pitchVelo}`:'—'}</td>
-                      <td style={{...s.td,color:colors.primary,fontWeight:600}}>{hr.exitVelo?`${hr.exitVelo}`:'—'}</td>
-                      <td style={{...s.td,color:colors.accent,fontWeight:600}}>{hr.distance?`${hr.distance} ft`:'—'}</td>
+                      <td style={{...s.td,color:veloColor(hr.pitchVelo)}}>{hr.pitchVelo?`${hr.pitchVelo} mph`:'—'}</td>
+                      <td style={{...s.td,color:colors.primary,fontWeight:600}}>{hr.exitVelo?`${hr.exitVelo} mph`:'—'}</td>
+                      <td style={{...s.td,color:colors.accent,fontWeight:600}}>{hr.distance??'—'}</td>
+                      <td style={{...s.td,color:'#b8bdd0'}}>{hr.launchAngle??'—'}</td>
                       <td style={{...s.td,textAlign:'left',color:'#5c6070'}}>{hr.direction??'—'}</td>
                       <td style={{...s.td,textAlign:'left',color:'#5c6070'}}>{hr.inning??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#5c6070'}}>{hr.count??'—'}</td>
                     </tr>
                   ))}
                 </tbody>
