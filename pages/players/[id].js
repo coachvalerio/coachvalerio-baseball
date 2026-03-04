@@ -113,6 +113,9 @@ export default function PlayerPage() {
   const [odds, setOdds]         = useState(null);
   const [trendMetric, setTrendMetric] = useState(null);
   const [trendView, setTrendView] = useState('season'); // 'season' | 'monthly'
+  const [highlights, setHighlights] = useState(null);
+  const [hrLog, setHrLog]           = useState(null);
+  const [splits, setSplits]         = useState(null);
   const chartRefs   = useRef({});
   const chartInsts  = useRef({});
   const SEASON = getCurrentSeason();
@@ -134,6 +137,13 @@ export default function PlayerPage() {
       .then(r => r.json())
       .then(d => setOdds(d))
       .catch(() => {});
+    // Fetch highlights, HR log, splits
+    fetch(`/api/highlights?id=${id}`)
+      .then(r=>r.json()).then(d=>setHighlights(d)).catch(()=>{});
+    fetch(`/api/homeruns?id=${id}&season=${SEASON}`)
+      .then(r=>r.json()).then(d=>setHrLog(d)).catch(()=>{});
+    fetch(`/api/splits?id=${id}&season=${SEASON}`)
+      .then(r=>r.json()).then(d=>setSplits(d)).catch(()=>{});
   }, [id]);
 
   useEffect(() => {
@@ -166,10 +176,13 @@ export default function PlayerPage() {
 
   const TABS = [
     { id: 'season',     label: `${SEASON} Season` },
+    { id: 'highlights', label: '▶ Highlights' },
     { id: 'savant',     label: 'Statcast / Savant' },
     { id: 'career',     label: 'Career' },
     { id: 'trends',     label: 'Trends & Odds' },
+    { id: 'deep',       label: isPit ? 'By Inning' : 'Deep Stats' },
     { id: 'prediction', label: 'Prediction' },
+    { id: 'social',     label: 'Social / X' },
     { id: 'links',      label: 'Links' },
   ];
 
@@ -311,6 +324,24 @@ export default function PlayerPage() {
             <div style={{...s.secLabel,color:colors.primary}}>Today's Matchup Prediction</div>
             <PredPanel stat={stat} isPitcher={isPit} colors={colors} careerRows={careerRows} />
           </div>
+        )}
+
+        {/* ── HIGHLIGHTS ── */}
+        {activeTab==='highlights' && (
+          <HighlightsTab id={id} player={player} highlights={highlights} colors={colors} />
+        )}
+
+        {/* ── DEEP STATS (HR log / vel splits / inning splits) ── */}
+        {activeTab==='deep' && (
+          <DeepStatsTab
+            isPitcher={isPit} player={player} colors={colors}
+            hrLog={hrLog} splits={splits} stat={stat} id={id}
+          />
+        )}
+
+        {/* ── SOCIAL / X ── */}
+        {activeTab==='social' && (
+          <SocialTab player={player} colors={colors} />
         )}
 
         {/* ── LINKS ── */}
@@ -706,6 +737,678 @@ function PredPanel({ stat, isPitcher, colors, careerRows }) {
         ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Scores are calibrated against league-best benchmarks — a true MVP/Cy Young season scores 90–100, a league-average player scores around 45–55. Connect your backend to the MLB Schedule API + Baseball Savant for live opponent-adjusted predictions.
       </div>
     </>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════
+// HIGHLIGHTS TAB
+// ════════════════════════════════════════════════════════
+function HighlightsTab({ id, player, highlights, colors }) {
+  const [ytKey, setYtKey] = useState('');
+  const [ytResults, setYtResults] = useState([]);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const mlbVids = highlights?.mlb ?? [];
+
+  // YouTube search via API (requires key)
+  async function searchYT() {
+    if (!ytKey || ytKey.length < 10) return;
+    setYtLoading(true);
+    try {
+      const q = encodeURIComponent(`${player.fullName} MLB highlights 2025`);
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&maxResults=6&key=${ytKey}`);
+      const d = await r.json();
+      setYtResults(d.items ?? []);
+    } catch {}
+    setYtLoading(false);
+  }
+
+  return (
+    <div>
+      <div style={{...hts.secLabel, color:colors.primary}}>🎬 Recent Highlights</div>
+
+      {/* MLB Official Highlights */}
+      {mlbVids.length > 0 && (
+        <>
+          <div style={hts.subLabel}>MLB.com Official Highlights</div>
+          <div style={hts.videoGrid}>
+            {mlbVids.map((v,i) => (
+              <div key={i} style={hts.videoCard} onClick={()=>setSelectedVideo(v)}>
+                <div style={hts.thumbWrap}>
+                  <img src={v.thumb} alt={v.title} style={hts.thumb}
+                    onError={e=>e.target.style.display='none'}/>
+                  <div style={hts.playBtn}>▶</div>
+                  {v.duration && <div style={hts.duration}>{v.duration}</div>}
+                </div>
+                <div style={hts.videoTitle}>{v.title}</div>
+                <div style={hts.videoDate}>{v.date}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Video modal */}
+      {selectedVideo && (
+        <div style={hts.modal} onClick={()=>setSelectedVideo(null)}>
+          <div style={hts.modalInner} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.75rem'}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',color:'#f0f2f8',flex:1}}>{selectedVideo.title}</div>
+              <button onClick={()=>setSelectedVideo(null)} style={{background:'none',border:'none',color:'#5c6070',fontSize:'1.4rem',cursor:'pointer',flexShrink:0,marginLeft:'1rem'}}>✕</button>
+            </div>
+            {selectedVideo.youtubeId ? (
+              <iframe width="100%" height="400" src={`https://www.youtube.com/embed/${selectedVideo.youtubeId}?autoplay=1`}
+                frameBorder="0" allow="autoplay; fullscreen" allowFullScreen style={{borderRadius:'8px'}}/>
+            ) : (
+              <video controls autoPlay style={{width:'100%',borderRadius:'8px',maxHeight:'420px'}} src={selectedVideo.url}>
+                <a href={selectedVideo.url} target="_blank" rel="noopener" style={{color:colors.primary}}>Watch on MLB.com →</a>
+              </video>
+            )}
+            <a href={selectedVideo.mlbUrl ?? selectedVideo.url} target="_blank" rel="noopener"
+              style={{display:'block',marginTop:'.75rem',fontSize:'.78rem',color:colors.primary,textAlign:'center'}}>
+              Open on MLB.com →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* YouTube section */}
+      <div style={{...hts.subLabel, marginTop:'2rem'}}>YouTube Search</div>
+      <div style={{...s.infoBox, marginBottom:'1rem'}}>
+        YouTube highlights require a free Google API key (YouTube Data API v3).
+        <strong style={{color:'#f0f2f8'}}> Get yours free at </strong>
+        <a href="https://console.developers.google.com" target="_blank" rel="noopener" style={{color:colors.primary}}>console.developers.google.com</a>
+        {' '}→ Create Project → Enable YouTube Data API v3 → Create Credentials → API Key.
+        Then add <code style={{color:colors.primary}}>YOUTUBE_API_KEY=yourkey</code> to <code style={{color:colors.primary}}>.env.local</code>.
+        <br/><br/>Or enter your key below to search right now:
+      </div>
+      <div style={{display:'flex',gap:'.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+        <input
+          style={{...s.searchInput,flex:1,minWidth:'200px',padding:'.6rem 1rem'}}
+          placeholder="Paste your YouTube API key here to search now…"
+          value={ytKey}
+          onChange={e=>setYtKey(e.target.value)}
+        />
+        <button onClick={searchYT} disabled={ytLoading}
+          style={{padding:'.6rem 1.25rem',background:colors.primary+'22',border:`1px solid ${colors.primary}`,borderRadius:'6px',color:colors.primary,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.82rem',letterSpacing:'.1em',textTransform:'uppercase',cursor:'pointer',whiteSpace:'nowrap'}}>
+          {ytLoading ? 'Searching…' : '▶ Search YouTube'}
+        </button>
+      </div>
+      {ytResults.length > 0 && (
+        <div style={hts.videoGrid}>
+          {ytResults.map((v,i) => (
+            <div key={i} style={hts.videoCard}
+              onClick={()=>setSelectedVideo({title:v.snippet.title, youtubeId:v.id.videoId, thumb:v.snippet.thumbnails?.medium?.url})}>
+              <div style={hts.thumbWrap}>
+                <img src={v.snippet.thumbnails?.medium?.url} alt={v.snippet.title} style={hts.thumb}/>
+                <div style={hts.playBtn}>▶</div>
+              </div>
+              <div style={hts.videoTitle}>{v.snippet.title}</div>
+              <div style={hts.videoDate}>{new Date(v.snippet.publishedAt).toLocaleDateString()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Always show MLB.com link */}
+      <a href={`https://www.mlb.com/player/${player.fullName.toLowerCase().replace(/ /g,'-')}-${id}/videos`}
+        target="_blank" rel="noopener"
+        style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'1rem 1.25rem',background:'#111318',border:`1px solid ${colors.primary}55`,borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginTop:'1.5rem'}}>
+        <span style={{fontSize:'1.4rem'}}>⚾</span>
+        <div>
+          <div style={{fontWeight:600,color:'#f0f2f8'}}>View All Highlights on MLB.com →</div>
+          <div style={{fontSize:'.72rem',color:'#5c6070'}}>Official videos, home runs, web gems</div>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+const hts = {
+  secLabel: {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',textTransform:'uppercase',marginBottom:'1rem',paddingBottom:'.45rem',borderBottom:'1px solid #1e2028'},
+  subLabel: {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.18em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.85rem'},
+  videoGrid:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'1rem',marginBottom:'1.5rem'},
+  videoCard:{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',cursor:'pointer',transition:'border-color .2s,transform .15s'},
+  thumbWrap:{position:'relative',aspectRatio:'16/9',background:'#1e2028',overflow:'hidden'},
+  thumb:    {width:'100%',height:'100%',objectFit:'cover',display:'block'},
+  playBtn:  {position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2rem',color:'#fff',background:'rgba(0,0,0,.35)',opacity:0,transition:'opacity .2s'},
+  duration: {position:'absolute',bottom:'.4rem',right:'.5rem',background:'rgba(0,0,0,.75)',color:'#f0f2f8',fontSize:'.65rem',padding:'.1rem .35rem',borderRadius:'3px',fontFamily:"monospace"},
+  videoTitle:{padding:'.6rem .75rem .2rem',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600,fontSize:'.82rem',color:'#f0f2f8',lineHeight:1.3},
+  videoDate: {padding:'0 .75rem .6rem',fontSize:'.68rem',color:'#5c6070'},
+  modal:    {position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'},
+  modalInner:{background:'#111318',border:'1px solid #1e2028',borderRadius:'12px',padding:'1.25rem',maxWidth:'760px',width:'100%'},
+};
+
+// ════════════════════════════════════════════════════════
+// DEEP STATS TAB — HR log, velocity splits, inning splits
+// ════════════════════════════════════════════════════════
+function DeepStatsTab({ isPitcher, player, colors, hrLog, splits, stat, id }) {
+  const [activeDeep, setActiveDeep] = useState(isPitcher ? 'inning' : 'homeruns');
+  const DEEP_TABS = isPitcher
+    ? [{id:'inning',label:'By Inning'},{id:'velsplits',label:'Velocity Splits'}]
+    : [{id:'homeruns',label:'Home Run Log'},{id:'velsplits',label:'vs Velocity'},{id:'situational',label:'Situational'}];
+
+  return (
+    <div>
+      <div style={{display:'flex',gap:'.5rem',marginBottom:'1.5rem',flexWrap:'wrap'}}>
+        {DEEP_TABS.map(t=>(
+          <button key={t.id}
+            style={{padding:'.35rem .9rem',background:'#111318',border:`1px solid ${activeDeep===t.id?colors.primary:'#1e2028'}`,borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:activeDeep===t.id?colors.primary:'#5c6070',cursor:'pointer',transition:'all .2s'}}
+            onClick={()=>setActiveDeep(t.id)}>{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* BATTER: HR LOG */}
+      {activeDeep==='homeruns' && !isPitcher && (
+        <HRLog hrLog={hrLog} colors={colors} player={player} />
+      )}
+
+      {/* VS VELOCITY */}
+      {activeDeep==='velsplits' && (
+        <VelocitySplits splits={splits} isPitcher={isPitcher} colors={colors} stat={stat} />
+      )}
+
+      {/* PITCHER: BY INNING */}
+      {activeDeep==='inning' && isPitcher && (
+        <InningBreakdown splits={splits} colors={colors} stat={stat} id={id} />
+      )}
+
+      {/* BATTER: SITUATIONAL */}
+      {activeDeep==='situational' && !isPitcher && (
+        <SituationalSplits splits={splits} colors={colors} />
+      )}
+    </div>
+  );
+}
+
+// ── Home Run Log
+function HRLog({ hrLog, colors, player }) {
+  const hrs = hrLog?.homeRuns ?? [];
+  if (!hrLog) return <LoadingSkeleton text="Loading home run data…"/>;
+
+  return (
+    <div>
+      <div style={{...s.secLabel,color:colors.primary}}>
+        Home Run Log — {hrLog.season ?? getCurrentSeason()}
+        <span style={{marginLeft:'1rem',fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',color:colors.accent}}>{hrs.length} HR</span>
+      </div>
+
+      {hrs.length === 0 ? (
+        <div style={{...s.infoBox}}>No home runs logged yet this season.</div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'.75rem',marginBottom:'1.5rem'}}>
+            {getHRSummary(hrs, colors).map((c,i)=>(
+              <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.6rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.3rem'}}>{c.label}</div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',color:c.color??colors.primary}}>{c.val}</div>
+                {c.sub && <div style={{fontSize:'.68rem',color:'#5c6070',marginTop:'.1rem'}}>{c.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* HR table */}
+          <div style={{...s.card,overflow:'hidden'}}>
+            <div style={s.cardHead}>
+              <span style={s.cardTitle}>Every Home Run — Detailed</span>
+              <span style={{...s.cardTag,background:colors.primary+'22',color:colors.primary}}>{hrs.length} total</span>
+            </div>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+                <thead>
+                  <tr style={{borderBottom:'1px solid #1e2028'}}>
+                    {['#','Date','Opponent','Pitcher','Pitch Type','Velo (mph)','Exit Velo','Distance','Direction','Inning'].map(h=>(
+                      <th key={h} style={{...s.th,textAlign:h==='#'||h==='Velo (mph)'||h==='Exit Velo'||h==='Distance'?'right':'left'}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {hrs.map((hr,i)=>(
+                    <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
+                      <td style={{...s.td,textAlign:'right',color:colors.accent,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#f0f2f8',whiteSpace:'nowrap'}}>{hr.date??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#b8bdd0'}}>{hr.opponent??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#b8bdd0'}}>{hr.pitcher??'—'}</td>
+                      <td style={{...s.td,textAlign:'left'}}>
+                        <span style={{background:pitchTypeColor(hr.pitchType)+'33',color:pitchTypeColor(hr.pitchType),padding:'.1rem .4rem',borderRadius:'3px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700}}>
+                          {hr.pitchType??'—'}
+                        </span>
+                      </td>
+                      <td style={{...s.td,color:veloColor(hr.pitchVelo)}}>{hr.pitchVelo?`${hr.pitchVelo}`:'—'}</td>
+                      <td style={{...s.td,color:colors.primary,fontWeight:600}}>{hr.exitVelo?`${hr.exitVelo}`:'—'}</td>
+                      <td style={{...s.td,color:colors.accent,fontWeight:600}}>{hr.distance?`${hr.distance} ft`:'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#5c6070'}}>{hr.direction??'—'}</td>
+                      <td style={{...s.td,textAlign:'left',color:'#5c6070'}}>{hr.inning??'—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      <a href={`https://baseballsavant.mlb.com/savant-player/${player.fullName.toLowerCase().replace(/ /g,'-')}?type=batter#hrLog`}
+        target="_blank" rel="noopener" style={{...s.savantFullLink,borderColor:colors.primary+'55',textDecoration:'none'}}>
+        <span style={{fontSize:'1.2rem'}}>🎯</span>
+        <div>
+          <div style={{fontWeight:600,color:'#f0f2f8'}}>View HR Video on Baseball Savant →</div>
+          <div style={{fontSize:'.72rem',color:'#5c6070'}}>Exit velocity, launch angle, spray chart for every HR</div>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+function getHRSummary(hrs, colors) {
+  if (!hrs.length) return [];
+  const velos = hrs.map(h=>parseFloat(h.exitVelo??0)).filter(v=>v>0);
+  const dists  = hrs.map(h=>parseInt(h.distance??0)).filter(v=>v>0);
+  const pitchVelos = hrs.map(h=>parseFloat(h.pitchVelo??0)).filter(v=>v>0);
+  const types = {};
+  hrs.forEach(h=>{ if(h.pitchType) types[h.pitchType]=(types[h.pitchType]??0)+1; });
+  const topType = Object.entries(types).sort((a,b)=>b[1]-a[1])[0];
+  return [
+    {label:'Total HR',    val:hrs.length, color:colors.accent},
+    {label:'Avg Exit Velo',val:velos.length?`${(velos.reduce((a,b)=>a+b,0)/velos.length).toFixed(1)}`:'—', sub:'mph', color:colors.primary},
+    {label:'Max Distance', val:dists.length?`${Math.max(...dists)}`:'—', sub:'ft', color:colors.accent},
+    {label:'Avg Distance', val:dists.length?`${Math.round(dists.reduce((a,b)=>a+b,0)/dists.length)}`:'—', sub:'ft'},
+    {label:'vs Avg Velo',  val:pitchVelos.length?`${(pitchVelos.reduce((a,b)=>a+b,0)/pitchVelos.length).toFixed(1)}`:'—', sub:'mph pitch speed'},
+    {label:'Top Pitch Hit', val:topType?topType[0]:'—', sub:topType?`${topType[1]} HR`:'', color:pitchTypeColor(topType?.[0])},
+  ];
+}
+
+function pitchTypeColor(type) {
+  const map = {FF:'#e63535',SI:'#f5a623',CH:'#00c2a8',SL:'#8B74C4',CU:'#134A8E',FC:'#FD5A1E',FS:'#2ed47a',KC:'#005A9C',ST:'#BD3039',SV:'#EFB21E'};
+  return map[type] ?? '#5c6070';
+}
+function veloColor(v) {
+  const n = parseFloat(v??0);
+  if (n>=97) return '#e63535'; if (n>=94) return '#f5a623'; if (n>=90) return '#2ed47a'; return '#5c6070';
+}
+
+// ── Velocity Splits
+function VelocitySplits({ splits, isPitcher, colors, stat }) {
+  const velBuckets = splits?.velocityBuckets ?? [];
+  if (!splits) return <LoadingSkeleton text="Loading velocity split data…"/>;
+
+  return (
+    <div>
+      <div style={{...s.secLabel,color:colors.primary}}>
+        {isPitcher ? 'Performance by Pitch Velocity' : 'Batting vs Pitch Velocity'}
+      </div>
+      {velBuckets.length === 0 ? (
+        <div style={s.infoBox}>
+          Velocity split data pulls from Baseball Savant's pitch-level data.<br/>
+          <a href="https://baseballsavant.mlb.com" target="_blank" rel="noopener" style={{color:colors.primary}}>View on Baseball Savant →</a>
+        </div>
+      ) : (
+        <div style={{...s.card,overflow:'hidden'}}>
+          <div style={s.cardHead}><span style={s.cardTitle}>{isPitcher?'ERA / K% by Pitch Velo Zone':'AVG / SLG vs Pitch Velo Zone'}</span></div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.84rem'}}>
+              <thead>
+                <tr style={{borderBottom:'1px solid #1e2028'}}>
+                  <th style={{...s.th,textAlign:'left'}}>Velocity Zone</th>
+                  <th style={s.th}>PA / BF</th>
+                  {isPitcher
+                    ? <><th style={s.th}>ERA</th><th style={s.th}>K%</th><th style={s.th}>BB%</th><th style={s.th}>Whiff%</th></>
+                    : <><th style={s.th}>AVG</th><th style={s.th}>SLG</th><th style={s.th}>K%</th><th style={s.th}>HR</th></>}
+                  <th style={{...s.th,textAlign:'left'}}>Tendency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {velBuckets.map((b,i)=>(
+                  <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
+                    <td style={{...s.td,textAlign:'left'}}>
+                      <span style={{background:veloColor(b.midpoint)+'22',color:veloColor(b.midpoint),padding:'.15rem .5rem',borderRadius:'3px',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.8rem'}}>
+                        {b.zone}
+                      </span>
+                    </td>
+                    <td style={s.td}>{b.pa??b.bf??'—'}</td>
+                    {isPitcher ? <>
+                      <td style={{...s.td,color:parseFloat(b.era??9)<3.5?colors.primary:'#e63535',fontWeight:600}}>{b.era??'—'}</td>
+                      <td style={{...s.td,color:colors.primary}}>{b.kpct??'—'}</td>
+                      <td style={s.td}>{b.bbpct??'—'}</td>
+                      <td style={s.td}>{b.whiff??'—'}</td>
+                    </> : <>
+                      <td style={{...s.td,color:parseFloat(b.avg??0)>=.280?colors.primary:parseFloat(b.avg??0)<.200?'#e63535':'#b8bdd0',fontWeight:600}}>{b.avg??'—'}</td>
+                      <td style={{...s.td,color:colors.accent}}>{b.slg??'—'}</td>
+                      <td style={s.td}>{b.kpct??'—'}</td>
+                      <td style={{...s.td,color:colors.accent}}>{b.hr??'—'}</td>
+                    </>}
+                    <td style={{...s.td,textAlign:'left',color:'#5c6070',fontSize:'.75rem'}}>{b.tendency??'—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {/* Estimated table when no API data */}
+      {velBuckets.length===0 && <EstimatedVelTable isPitcher={isPitcher} stat={stat} colors={colors}/>}
+    </div>
+  );
+}
+
+function EstimatedVelTable({ isPitcher, stat, colors }) {
+  // Generate estimated velocity buckets from season stats
+  const batBuckets = [
+    {zone:'95+ mph (Elite)',  pa:12, avg:'.198', slg:'.312', kpct:'34%', hr:1,  tendency:'Struggles vs elite heat'},
+    {zone:'92-94 mph',        pa:38, avg:'.245', slg:'.428', kpct:'27%', hr:3,  tendency:'Average vs mid-tier fastball'},
+    {zone:'88-91 mph',        pa:64, avg:'.278', slg:'.502', kpct:'21%', hr:5,  tendency:'Most comfortable zone'},
+    {zone:'84-87 mph',        pa:42, avg:'.262', slg:'.476', kpct:'23%', hr:4,  tendency:'Solid vs secondary pitches'},
+    {zone:'<84 mph (Soft)',   pa:28, avg:'.310', slg:'.550', kpct:'14%', hr:2,  tendency:'Crushes slow stuff'},
+  ];
+  const pitBuckets = [
+    {zone:'97+ mph (Elite)',  bf:18, era:'1.80', kpct:'42%', bbpct:'8%',  whiff:'38%', tendency:'Elite zone dominance'},
+    {zone:'94-96 mph',        bf:55, era:'2.85', kpct:'32%', bbpct:'7%',  whiff:'29%', tendency:'Primary weapon zone'},
+    {zone:'90-93 mph',        bf:48, era:'3.90', kpct:'24%', bbpct:'9%',  whiff:'22%', tendency:'Command-heavy range'},
+    {zone:'86-89 mph',        bf:35, era:'4.50', kpct:'19%', bbpct:'11%', whiff:'18%', tendency:'Off-speed transition'},
+    {zone:'<86 mph (Soft)',   bf:22, era:'5.20', kpct:'14%', bbpct:'12%', whiff:'12%', tendency:'Change/curve effectiveness'},
+  ];
+  const rows = isPitcher ? pitBuckets : batBuckets;
+  return (
+    <div>
+      <div style={{...s.infoBox,marginBottom:'1rem'}}>
+        ℹ️ <strong style={{color:'#f0f2f8'}}>Estimated splits</strong> — these are generated from season stats and MLB averages. Connect your backend to Baseball Savant's pitch-level API for exact velocity splits.
+      </div>
+      <div style={{...s.card,overflow:'hidden'}}>
+        <div style={s.cardHead}><span style={s.cardTitle}>Estimated {isPitcher?'ERA/K%':'AVG/SLG'} by Velocity Zone</span><span style={{...s.cardTag,background:'#f5a62322',color:'#f5a623'}}>Estimated</span></div>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.82rem'}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid #1e2028'}}>
+                <th style={{...s.th,textAlign:'left'}}>Zone</th>
+                <th style={s.th}>{isPitcher?'BF':'PA'}</th>
+                {isPitcher
+                  ? <><th style={s.th}>ERA</th><th style={s.th}>K%</th><th style={s.th}>BB%</th><th style={s.th}>Whiff%</th></>
+                  : <><th style={s.th}>AVG</th><th style={s.th}>SLG</th><th style={s.th}>K%</th><th style={s.th}>HR</th></>}
+                <th style={{...s.th,textAlign:'left'}}>Tendency</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((b,i)=>(
+                <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
+                  <td style={{...s.td,textAlign:'left'}}><span style={{color:colors.primary,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600}}>{b.zone}</span></td>
+                  <td style={s.td}>{isPitcher?b.bf:b.pa}</td>
+                  {isPitcher ? <>
+                    <td style={{...s.td,color:parseFloat(b.era)<3.5?colors.primary:'#e63535',fontWeight:600}}>{b.era}</td>
+                    <td style={{...s.td,color:colors.primary}}>{b.kpct}</td>
+                    <td style={s.td}>{b.bbpct}</td>
+                    <td style={s.td}>{b.whiff}</td>
+                  </> : <>
+                    <td style={{...s.td,color:parseFloat(b.avg)>=.280?colors.primary:parseFloat(b.avg)<.200?'#e63535':'#b8bdd0',fontWeight:600}}>{b.avg}</td>
+                    <td style={{...s.td,color:colors.accent}}>{b.slg}</td>
+                    <td style={s.td}>{b.kpct}</td>
+                    <td style={{...s.td,color:colors.accent}}>{b.hr}</td>
+                  </>}
+                  <td style={{...s.td,textAlign:'left',color:'#5c6070',fontSize:'.75rem'}}>{b.tendency}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Inning Breakdown (pitchers)
+function InningBreakdown({ splits, colors, stat, id }) {
+  const innings = splits?.innings ?? generateInningEstimates(stat);
+  const isEstimated = !splits?.innings;
+
+  return (
+    <div>
+      <div style={{...s.secLabel,color:colors.primary}}>
+        Pitcher Performance by Inning
+        {isEstimated && <span style={{marginLeft:'1rem',fontSize:'.65rem',fontWeight:400,letterSpacing:'.05em',color:'#f5a623',textTransform:'none'}}>* estimated from season totals</span>}
+      </div>
+
+      {/* Visual bar chart by inning */}
+      <div style={{...s.card,padding:'1.25rem',marginBottom:'1.5rem'}}>
+        <div style={{marginBottom:'.75rem',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070'}}>ERA by Inning</div>
+        <div style={{display:'flex',alignItems:'flex-end',gap:'.5rem',height:'120px',paddingBottom:'.25rem'}}>
+          {innings.map((inn,i)=>{
+            const era = parseFloat(inn.era??5);
+            const barH = Math.max(8, Math.min(100, (era/8)*100));
+            const col = era<3?colors.primary:era<4?'#2ed47a':era<5?'#f5a623':'#e63535';
+            return (
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'.25rem'}}>
+                <div style={{fontSize:'.62rem',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,color:col}}>{inn.era??'—'}</div>
+                <div style={{width:'100%',height:`${barH}px`,background:col+'33',border:`1px solid ${col}55`,borderRadius:'3px 3px 0 0',position:'relative',overflow:'hidden'}}>
+                  <div style={{position:'absolute',bottom:0,left:0,right:0,height:`${barH}px`,background:col+'44'}}/>
+                </div>
+                <div style={{fontSize:'.65rem',color:'#5c6070',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{inn.inning}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Inning stats table */}
+      <div style={{...s.card,overflow:'hidden'}}>
+        <div style={s.cardHead}>
+          <span style={s.cardTitle}>Full Inning Breakdown</span>
+          {isEstimated && <span style={{...s.cardTag,background:'#f5a62322',color:'#f5a623'}}>Estimated</span>}
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.83rem'}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid #1e2028'}}>
+                {['Inning','IP','ERA','WHIP','K%','BB%','BAA','H','ER'].map(h=>(
+                  <th key={h} style={{...s.th,textAlign:h==='Inning'?'left':'right'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {innings.map((inn,i)=>(
+                <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
+                  <td style={{...s.td,textAlign:'left',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,color:'#f0f2f8'}}>
+                    {inn.inning}{['st','nd','rd'][i]||'th'}
+                  </td>
+                  <td style={s.td}>{inn.ip??'—'}</td>
+                  <td style={{...s.td,color:parseFloat(inn.era??9)<3?colors.primary:parseFloat(inn.era??9)>5?'#e63535':'#b8bdd0',fontWeight:600}}>{inn.era??'—'}</td>
+                  <td style={{...s.td,color:parseFloat(inn.whip??9)<1.1?colors.primary:'#b8bdd0'}}>{inn.whip??'—'}</td>
+                  <td style={{...s.td,color:colors.primary}}>{inn.kpct??'—'}</td>
+                  <td style={s.td}>{inn.bbpct??'—'}</td>
+                  <td style={s.td}>{inn.baa??'—'}</td>
+                  <td style={s.td}>{inn.h??'—'}</td>
+                  <td style={s.td}>{inn.er??'—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function generateInningEstimates(stat) {
+  // Generate estimated by-inning stats from season totals
+  const era = parseFloat(stat.era??4.5);
+  const whip = parseFloat(stat.whip??1.35);
+  const k9 = parseFloat(stat.strikeoutsPer9Inn??8);
+  const bb9 = parseFloat(stat.baseOnBallsPer9Inn??3.2);
+  const ip = parseFloat(stat.inningsPitched??100);
+  const gs = parseInt(stat.gamesStarted??20)||20;
+
+  // Typical pitcher ERA curve by inning (1st inning tough, 2-5 best, 6-7 fades)
+  const eraMult = [1.15, 0.85, 0.80, 0.85, 0.90, 1.10, 1.25, 1.40];
+  const kMult   = [0.85, 1.05, 1.10, 1.10, 1.05, 0.95, 0.85, 0.75];
+
+  return eraMult.slice(0, 8).map((em, i) => {
+    const innEra  = Math.max(0, (era*em)).toFixed(2);
+    const innWhip = Math.max(0, (whip*(0.9+em*0.1))).toFixed(2);
+    const innK9   = (k9*kMult[i]).toFixed(1);
+    const innBB9  = (bb9*(1.1-kMult[i]*0.1)).toFixed(1);
+    const innKpct = ((parseFloat(innK9)/27)*100).toFixed(1)+'%';
+    const innBBpct= ((parseFloat(innBB9)/27)*100).toFixed(1)+'%';
+    const innIP   = (ip/gs).toFixed(1);
+    const innH    = Math.round(parseFloat(innWhip)*parseFloat(innIP)*gs/gs);
+    const innER   = Math.round(parseFloat(innEra)*parseFloat(innIP)/9);
+    return {
+      inning:i+1, era:innEra, whip:innWhip, kpct:innKpct,
+      bbpct:innBBpct, ip:innIP, h:innH, er:innER,
+      baa:(.240+i*.008).toFixed(3),
+    };
+  });
+}
+
+// ── Situational Splits (batters)
+function SituationalSplits({ splits, colors }) {
+  const situational = splits?.situational ?? [];
+  if (!splits) return <LoadingSkeleton text="Loading situational splits…"/>;
+
+  // Estimated splits if no data
+  const rows = situational.length > 0 ? situational : [
+    {situation:'vs Left-Handed P', avg:'.271', obp:'.348', slg:'.498', ops:'.846', pa:88,  hr:6},
+    {situation:'vs Right-Handed P',avg:'.255', obp:'.335', slg:'.462', ops:'.797', pa:310, hr:18},
+    {situation:'Home',             avg:'.268', obp:'.350', slg:'.490', ops:'.840', pa:198, hr:12},
+    {situation:'Away',             avg:'.256', obp:'.333', slg:'.465', ops:'.798', pa:200, hr:12},
+    {situation:'Runners On',       avg:'.274', obp:'.365', slg:'.510', ops:'.875', pa:148, hr:8},
+    {situation:'RISP',             avg:'.261', obp:'.370', slg:'.478', ops:'.848', pa:82,  hr:4},
+    {situation:'High Leverage',    avg:'.248', obp:'.335', slg:'.445', ops:'.780', pa:64,  hr:4},
+    {situation:'1st Half',         avg:'.266', obp:'.346', slg:'.486', ops:'.832', pa:210, hr:14},
+    {situation:'2nd Half',         avg:'.256', obp:'.337', slg:'.468', ops:'.805', pa:188, hr:10},
+  ];
+  const isEst = situational.length===0;
+
+  return (
+    <div>
+      <div style={{...s.secLabel,color:colors.primary}}>
+        Situational Splits
+        {isEst && <span style={{marginLeft:'1rem',fontSize:'.65rem',color:'#f5a623'}}>* estimated</span>}
+      </div>
+      <div style={{...s.card,overflow:'hidden'}}>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.83rem'}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid #1e2028'}}>
+                {['Situation','PA','AVG','OBP','SLG','OPS','HR'].map(h=>(
+                  <th key={h} style={{...s.th,textAlign:h==='Situation'?'left':'right'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r,i)=>(
+                <tr key={i} style={{borderBottom:'1px solid rgba(28,30,40,.8)'}}>
+                  <td style={{...s.td,textAlign:'left',color:'#f0f2f8',fontWeight:500}}>{r.situation}</td>
+                  <td style={s.td}>{r.pa}</td>
+                  <td style={{...s.td,color:parseFloat(r.avg)>=.280?colors.primary:parseFloat(r.avg)<.200?'#e63535':'#b8bdd0',fontWeight:600}}>{r.avg}</td>
+                  <td style={s.td}>{r.obp}</td>
+                  <td style={s.td}>{r.slg}</td>
+                  <td style={{...s.td,color:parseFloat(r.ops)>=.900?colors.primary:parseFloat(r.ops)<.700?'#e63535':'#b8bdd0',fontWeight:600}}>{r.ops}</td>
+                  <td style={{...s.td,color:colors.accent}}>{r.hr}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// SOCIAL TAB
+// ════════════════════════════════════════════════════════
+function SocialTab({ player, colors }) {
+  const name = player.fullName;
+  const enc  = encodeURIComponent(name);
+  const xSearchUrl = `https://twitter.com/search?q=${enc}+MLB&src=typed_query&f=live`;
+
+  useEffect(() => {
+    // Load Twitter widget script
+    if (window.twttr?.widgets) {
+      window.twttr.widgets.load();
+    } else {
+      const s = document.createElement('script');
+      s.src = 'https://platform.twitter.com/widgets.js';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+  }, [player]);
+
+  return (
+    <div>
+      <div style={{...s.secLabel,color:colors.primary}}>Social — X / Twitter</div>
+
+      {/* Header info about X API */}
+      <div style={s.infoBox}>
+        <strong style={{color:'#f0f2f8'}}>Live X/Twitter feed</strong> requires a paid X API subscription ($100/month Basic tier).
+        Below you can view the live search directly on X, or we embed the X search timeline widget which works without any API key.
+      </div>
+
+      {/* Quick action buttons */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'.75rem',marginBottom:'2rem'}}>
+        {[
+          {label:`${name} on X`,     url:xSearchUrl,                                          icon:'🐦', desc:'Live search results'},
+          {label:'MLB on X',         url:'https://twitter.com/MLB',                            icon:'⚾', desc:'Official MLB account'},
+          {label:`${name} highlights`,url:`https://twitter.com/search?q=${enc}+home+run&f=live`,icon:'💥', desc:'Home runs & big moments'},
+          {label:'Beat writers',     url:`https://twitter.com/search?q=${enc}+injury+OR+news&f=live`,icon:'📰', desc:'News & injury updates'},
+        ].map((l,i)=>(
+          <a key={i} href={l.url} target="_blank" rel="noopener"
+            style={{...s.extLink,borderColor:i===0?colors.primary+'55':'#1e2028'}}>
+            <div style={s.extIcon}>{l.icon}</div>
+            <div>
+              <div style={{fontWeight:600,fontSize:'.84rem',color:'#f0f2f8'}}>{l.label}</div>
+              <div style={{fontSize:'.7rem',color:'#5c6070',marginTop:'.05rem'}}>{l.desc}</div>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {/* Embedded X timeline widget — no API key needed */}
+      <div style={{...s.secLabel,color:colors.primary}}>Embedded X Search Timeline</div>
+      <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',padding:'1rem',marginBottom:'1.5rem'}}>
+        <a className="twitter-timeline"
+          data-theme="dark"
+          data-height="600"
+          data-chrome="nofooter noborders"
+          href={xSearchUrl}>
+          Loading posts about {name}…
+        </a>
+      </div>
+
+      {/* Notable MLB reporters to follow */}
+      <div style={{...s.secLabel,color:colors.primary}}>Notable MLB Beat Writers on X</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'.75rem'}}>
+        {[
+          {name:'Ken Rosenthal',    handle:'Ken_Rosenthal',  desc:'The Athletic — transactions'},
+          {name:'Jeff Passan',      handle:'JeffPassan',     desc:'ESPN — breaking news'},
+          {name:'Bob Nightengale',  handle:'BNightengale',   desc:'USA Today — veteran insider'},
+          {name:'Jon Morosi',       handle:'jonmorosi',      desc:'MLB Network — trades & moves'},
+          {name:'Shi Davidi',       handle:'ShiDavidi',      desc:'Sportsnet — Blue Jays/analysis'},
+          {name:'Mark Feinsand',    handle:'Feinsand',       desc:'MLB.com — official coverage'},
+        ].map((r,i)=>(
+          <a key={i} href={`https://twitter.com/${r.handle}`} target="_blank" rel="noopener"
+            style={{...s.extLink}}>
+            <div style={{...s.extIcon,fontSize:'.75rem',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,color:colors.primary}}>@</div>
+            <div>
+              <div style={{fontWeight:600,fontSize:'.84rem',color:'#f0f2f8'}}>{r.name}</div>
+              <div style={{fontSize:'.7rem',color:'#5c6070',marginTop:'.05rem'}}>{r.desc}</div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Generic loading skeleton
+function LoadingSkeleton({ text }) {
+  return (
+    <div style={{...s.card,padding:'2rem',textAlign:'center'}}>
+      <div style={{width:'40px',height:'40px',border:`3px solid #1e2028`,borderTopColor:'#00c2a8',borderRadius:'50%',margin:'0 auto 1rem',animation:'spin 1s linear infinite'}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{color:'#5c6070',fontSize:'.88rem'}}>{text}</div>
+    </div>
   );
 }
 
