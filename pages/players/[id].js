@@ -1539,58 +1539,59 @@ function getPitSavant(s){
 
 // Full Savant tile definitions with percentile estimation
 function getBatTiles(s, savantData) {
-  const avg=parseFloat(s.avg??0),slg=parseFloat(s.slg??0),obp=parseFloat(s.obp??0);
-  const ab=parseInt(s.atBats??1),so=parseInt(s.strikeOuts??0),bb=parseInt(s.baseOnBalls??0),hr=parseInt(s.homeRuns??0);
-  const kpct=ab>0?(so/ab)*100:null, bbpct=ab>0?(bb/ab)*100:null;
-  // Raw xStats: prefer Savant real values, fall back to MLB API estimates
-  const xbaVal   = savantData?.xba   ?? (avg  ? (avg+.003).toFixed(3)  : null);
-  const xslgVal  = savantData?.xslg  ?? (slg  ? (slg+.005).toFixed(3)  : null);
-  const xwobaVal = savantData?.xwoba ?? (obp  ? ((obp+slg)/2+.01).toFixed(3) : null);
+  const avg=parseFloat(s.avg??0), slg=parseFloat(s.slg??0), obp=parseFloat(s.obp??0);
+  const ab=parseInt(s.atBats??1), so=parseInt(s.strikeOuts??0), bb=parseInt(s.baseOnBalls??0), hr=parseInt(s.homeRuns??0);
+  const kpct = ab>0 ? (so/ab)*100 : null;
+  const bbpct = ab>0 ? (bb/ab)*100 : null;
+  // xStats: use real Savant values if available, estimate from MLB stats otherwise
+  const xbaV   = savantData?.xba   ?? (avg  ? (avg+.003).toFixed(3)  : null);
+  const xslgV  = savantData?.xslg  ?? (slg  ? (slg+.005).toFixed(3)  : null);
+  const xwobaV = savantData?.xwoba ?? (obp  ? ((obp+slg)/2+.01).toFixed(3) : null);
   return [
-    {label:'Batting Average', savantKey:'avg_pct',      val:s.avg??'--',             sub:'Season',           bar:avg/.400,  estimatedPct:savantData?.avg_pct   ??estimatePct('avg',avg)},
-    {label:'On-Base %',       savantKey:'obp_pct',      val:s.obp??'--',             sub:'Season',           bar:obp/.500,  estimatedPct:savantData?.obp_pct   ??estimatePct('obp',obp)},
-    {label:'Slugging %',      savantKey:'slg_pct',      val:s.slg??'--',             sub:'Season',           bar:slg/.700,  estimatedPct:savantData?.slg_pct   ??estimatePct('slg',slg)},
-    {label:'OPS',             savantKey:'ops_pct',      val:s.ops??'--',             sub:'Season',           bar:parseFloat(s.ops??0)/1.2, estimatedPct:savantData?.ops_pct??estimatePct('ops',parseFloat(s.ops??0))},
-    {label:'Home Runs',       savantKey:'hr_pct',       val:hr||'--',                sub:'Season total',     bar:Math.min(hr/55,1), col:'accent', estimatedPct:savantData?.hr_pct??estimatePct('homeRuns',hr)},
-    {label:'RBI',             savantKey:'rbi_pct',      val:s.rbi??'--',             sub:'Season total',     bar:Math.min(parseInt(s.rbi??0)/120,1), estimatedPct:estimatePct('rbi',parseInt(s.rbi??0))},
-    {label:'Stolen Bases',    savantKey:'sb_pct',       val:s.stolenBases??'--',     sub:'Season total',     bar:Math.min(parseInt(s.stolenBases??0)/50,1), estimatedPct:estimatePct('stolenBases',parseInt(s.stolenBases??0))},
-    {label:'K%',              savantKey:'k_pct',        val:kpct?kpct.toFixed(1)+'%':'--', sub:'Strikeout rate', bar:kpct?kpct/40:0, lowerIsBetter:true, estimatedPct:savantData?.k_pct??estimatePct('avg_k_pct',kpct,true)},
-    {label:'BB%',             savantKey:'bb_pct',       val:bbpct?bbpct.toFixed(1)+'%':'--', sub:'Walk rate', bar:bbpct?Math.min(bbpct/15,1):0, estimatedPct:savantData?.bb_pct??estimatePct('avg_bb_pct',bbpct)},
-    {label:'xBA',             savantKey:'xba_pct',      val:xbaVal??'--',            sub:'Expected AVG',     bar:xbaVal?parseFloat(xbaVal)/.400:0, estimatedPct:savantData?.xba_pct??estimatePct('xba',parseFloat(xbaVal??0))},
-    {label:'xSLG',            savantKey:'xslg_pct',     val:xslgVal??'--',           sub:'Expected SLG',     bar:xslgVal?parseFloat(xslgVal)/.700:0, estimatedPct:savantData?.xslg_pct??estimatePct('xslg',parseFloat(xslgVal??0))},
-    {label:'xwOBA',           savantKey:'xwoba_pct',    val:xwobaVal??'--',          sub:'Expected wOBA',    bar:xwobaVal?parseFloat(xwobaVal)/.500:0, estimatedPct:savantData?.xwoba_pct??estimatePct('xwoba',parseFloat(xwobaVal??0))},
-    {label:'Hard Hit%',       savantKey:'hard_hit_pct', val:savantData?.hard_hit??'--',       sub:'>=95mph exit vel.', bar:savantData?.hard_hit?parseFloat(savantData.hard_hit)/60:0, estimatedPct:savantData?.hard_hit_pct??null},
-    {label:'Barrel%',         savantKey:'barrel_pct',   val:savantData?.barrel??'--',         sub:'Optimal EV + LA',  bar:savantData?.barrel?parseFloat(savantData.barrel)/20:0, estimatedPct:savantData?.barrel_pct??null},
-    {label:'Sweet Spot%',      savantKey:null,            val:savantData?.sweet_spot??'--',     sub:'8-32 deg launch angle', bar:savantData?.sweet_spot?parseFloat(savantData.sweet_spot)/50:0, estimatedPct:null},
-    {label:'Exit Velocity',   savantKey:'ev_pct',       val:savantData?.exit_velocity?(savantData.exit_velocity+' mph'):'--', sub:'Avg exit velo', bar:savantData?.exit_velocity?(parseFloat(savantData.exit_velocity)-80)/30:0, estimatedPct:savantData?.ev_pct??null},
-    {label:'Launch Angle',    savantKey:null,            val:savantData?.launch_angle?(savantData.launch_angle+'°'):'--', sub:'Avg degrees', bar:0, estimatedPct:null},
-    {label:'Sprint Speed',    savantKey:'sprint_pct',   val:savantData?.sprint_speed?(savantData.sprint_speed+' ft/s'):'--', sub:'ft/sec', bar:savantData?.sprint_speed?(parseFloat(savantData.sprint_speed)-22)/10:0, estimatedPct:savantData?.sprint_pct??null},
-    {label:'Outs Above Avg',  savantKey:'oaa_pct',      val:savantData?.outs_above_avg!=null?String(savantData.outs_above_avg):'--', sub:'Fielding', bar:0, estimatedPct:savantData?.oaa_pct??null},
+    {label:'Batting Average', savantKey:'avg_pct',       val:s.avg??'--',                          sub:'Season',           bar:avg/.400,  estimatedPct:savantData?.avg_pct    ?? estimatePct('avg',avg)},
+    {label:'On-Base %',       savantKey:'obp_pct',       val:s.obp??'--',                          sub:'Season',           bar:obp/.500,  estimatedPct:savantData?.obp_pct    ?? estimatePct('obp',obp)},
+    {label:'Slugging %',      savantKey:'slg_pct',       val:s.slg??'--',                          sub:'Season',           bar:slg/.700,  estimatedPct:savantData?.slg_pct    ?? estimatePct('slg',slg)},
+    {label:'OPS',             savantKey:'ops_pct',       val:s.ops??'--',                          sub:'Season',           bar:parseFloat(s.ops??0)/1.2, estimatedPct:savantData?.ops_pct ?? estimatePct('ops',parseFloat(s.ops??0))},
+    {label:'Home Runs',       savantKey:'hr_pct',        val:hr||'--',                             sub:'Season total',     bar:Math.min(hr/55,1), col:'accent', estimatedPct:savantData?.hr_pct ?? estimatePct('homeRuns',hr)},
+    {label:'RBI',             savantKey:null,            val:s.rbi??'--',                          sub:'Season total',     bar:Math.min(parseInt(s.rbi??0)/120,1), estimatedPct:estimatePct('rbi',parseInt(s.rbi??0))},
+    {label:'Stolen Bases',    savantKey:null,            val:s.stolenBases??'--',                  sub:'Season total',     bar:Math.min(parseInt(s.stolenBases??0)/50,1), estimatedPct:estimatePct('stolenBases',parseInt(s.stolenBases??0))},
+    {label:'K%',              savantKey:'k_pct',         val:kpct?kpct.toFixed(1)+'%':'--',        sub:'Strikeout rate',   bar:kpct?kpct/40:0, lowerIsBetter:true, estimatedPct:savantData?.k_pct ?? estimatePct('avg_k_pct',kpct,true)},
+    {label:'BB%',             savantKey:'bb_pct',        val:bbpct?bbpct.toFixed(1)+'%':'--',      sub:'Walk rate',        bar:bbpct?Math.min(bbpct/15,1):0, estimatedPct:savantData?.bb_pct ?? estimatePct('avg_bb_pct',bbpct)},
+    {label:'xBA',             savantKey:'xba_pct',       val:xbaV??'--',                           sub:'Expected AVG',     bar:xbaV?parseFloat(xbaV)/.400:0,  estimatedPct:savantData?.xba_pct   ?? estimatePct('xba',parseFloat(xbaV??0))},
+    {label:'xSLG',            savantKey:'xslg_pct',      val:xslgV??'--',                          sub:'Expected SLG',     bar:xslgV?parseFloat(xslgV)/.700:0, estimatedPct:savantData?.xslg_pct  ?? estimatePct('xslg',parseFloat(xslgV??0))},
+    {label:'xwOBA',           savantKey:'xwoba_pct',     val:xwobaV??'--',                         sub:'Expected wOBA',    bar:xwobaV?parseFloat(xwobaV)/.500:0, estimatedPct:savantData?.xwoba_pct ?? estimatePct('xwoba',parseFloat(xwobaV??0))},
+    {label:'Hard Hit%',       savantKey:'hard_hit_pct',  val:savantData?.hard_hit??'--',           sub:'>=95mph exit vel.', bar:savantData?.hard_hit?parseFloat(savantData.hard_hit)/60:0, estimatedPct:savantData?.hard_hit_pct ?? null},
+    {label:'Barrel%',         savantKey:'barrel_pct',    val:savantData?.barrel??'--',             sub:'Optimal EV + LA',  bar:savantData?.barrel?parseFloat(savantData.barrel)/20:0, estimatedPct:savantData?.barrel_pct ?? null},
+    {label:'Sweet Spot%',     savantKey:'sweet_spot_pct',val:savantData?.sweet_spot??'--',         sub:'8-32 deg launch',  bar:savantData?.sweet_spot?parseFloat(savantData.sweet_spot)/50:0, estimatedPct:savantData?.sweet_spot_pct ?? null},
+    {label:'Exit Velocity',   savantKey:'ev_pct',        val:savantData?.exit_velocity?(savantData.exit_velocity+' mph'):'--', sub:'Avg exit velo', bar:savantData?.exit_velocity?(parseFloat(savantData.exit_velocity)-80)/30:0, estimatedPct:savantData?.ev_pct ?? null},
+    {label:'Launch Angle',    savantKey:'launch_angle_pct', val:savantData?.launch_angle??'--',    sub:'Avg degrees',      bar:0, estimatedPct:savantData?.launch_angle_pct ?? null},
+    {label:'Sprint Speed',    savantKey:'sprint_pct',    val:savantData?.sprint_speed?(savantData.sprint_speed+' ft/s'):'--', sub:'ft/sec', bar:savantData?.sprint_speed?(parseFloat(savantData.sprint_speed)-22)/10:0, estimatedPct:savantData?.sprint_pct ?? null},
+    {label:'Outs Above Avg',  savantKey:'oaa_pct',       val:savantData?.outs_above_avg!=null?String(savantData.outs_above_avg):'--', sub:'Fielding', bar:0, estimatedPct:savantData?.oaa_pct ?? null},
   ];
 }
 
 function getPitTiles(s, savantData) {
-  const era=parseFloat(s.era??0),whip=parseFloat(s.whip??0),k9=parseFloat(s.strikeoutsPer9Inn??0);
-  const bb9=parseFloat(s.baseOnBallsPer9Inn??0);
+  const era=parseFloat(s.era??0), whip=parseFloat(s.whip??0);
+  const k9=parseFloat(s.strikeoutsPer9Inn??0), bb9=parseFloat(s.baseOnBallsPer9Inn??0);
   const so=parseInt(s.strikeOuts??0);
-  const xeraVal = savantData?.xera ?? (era ? (era-.15).toFixed(2) : null);
+  const xeraV = savantData?.xera ?? (era ? (era-.15).toFixed(2) : null);
   return [
-    {label:'ERA',             savantKey:'era_pct',      val:s.era??'--',    sub:'Season', bar:era>0?Math.max(0,1-(era/7)):0, lowerIsBetter:true, estimatedPct:savantData?.era_pct??estimatePct('era',era,true)},
-    {label:'WHIP',            savantKey:'whip_pct',     val:s.whip??'--',   sub:'Season', bar:whip>0?Math.max(0,1-(whip/3)):0, lowerIsBetter:true, estimatedPct:savantData?.whip_pct??estimatePct('whip',whip,true)},
-    {label:'K/9',             savantKey:'k9_pct',       val:s.strikeoutsPer9Inn??'--', sub:'Per 9 inn.', bar:k9/16, estimatedPct:savantData?.k9_pct??estimatePct('k9',k9)},
-    {label:'BB/9',            savantKey:'bb9_pct',      val:s.baseOnBallsPer9Inn??'--', sub:'Per 9 inn.', bar:bb9/10, lowerIsBetter:true, estimatedPct:savantData?.bb9_pct??estimatePct('bb9',bb9,true)},
+    {label:'ERA',             savantKey:'era_pct',       val:s.era??'--',   sub:'Season', bar:era>0?Math.max(0,1-(era/7)):0, lowerIsBetter:true,  estimatedPct:savantData?.era_pct  ?? estimatePct('era',era,true)},
+    {label:'WHIP',            savantKey:'whip_pct',      val:s.whip??'--',  sub:'Season', bar:whip>0?Math.max(0,1-(whip/3)):0, lowerIsBetter:true, estimatedPct:savantData?.whip_pct ?? estimatePct('whip',whip,true)},
+    {label:'K/9',             savantKey:'k9_pct',        val:s.strikeoutsPer9Inn??'--', sub:'Per 9 inn.', bar:k9/16, estimatedPct:savantData?.k9_pct ?? estimatePct('k9',k9)},
+    {label:'BB/9',            savantKey:'bb9_pct',       val:s.baseOnBallsPer9Inn??'--', sub:'Per 9 inn.', bar:bb9/10, lowerIsBetter:true, estimatedPct:savantData?.bb9_pct ?? estimatePct('bb9',bb9,true)},
     {label:'Innings Pitched', savantKey:null,            val:s.inningsPitched??'--', sub:'Season total', bar:Math.min(parseFloat(s.inningsPitched??0)/200,1), estimatedPct:null},
-    {label:'Strikeouts',      savantKey:null,            val:so||'--',       sub:'Season total', bar:Math.min(so/300,1), estimatedPct:null},
+    {label:'Strikeouts',      savantKey:null,            val:so||'--',      sub:'Season total', bar:Math.min(so/300,1), estimatedPct:null},
     {label:'H/9',             savantKey:null,            val:s.hitsPer9Inn??'--', sub:'Hits/9', bar:parseFloat(s.hitsPer9Inn??0)/12, lowerIsBetter:true, estimatedPct:estimatePct('h9',parseFloat(s.hitsPer9Inn??0),true)},
     {label:'HR/9',            savantKey:null,            val:s.homeRunsPer9??'--', sub:'HR/9', bar:parseFloat(s.homeRunsPer9??0)/3, lowerIsBetter:true, estimatedPct:estimatePct('hr9',parseFloat(s.homeRunsPer9??0),true)},
-    {label:'xERA',            savantKey:'xera_pct',     val:xeraVal??'--',  sub:'Expected ERA', bar:xeraVal?Math.max(0,1-(parseFloat(xeraVal)/7)):0, lowerIsBetter:true, estimatedPct:savantData?.xera_pct??estimatePct('xera',parseFloat(xeraVal??5),true)},
-    {label:'Whiff%',          savantKey:'whiff_pct',    val:savantData?.whiff??'--',        sub:'Swing & miss', bar:savantData?.whiff?parseFloat(savantData.whiff)/40:0, estimatedPct:savantData?.whiff_pct??null},
-    {label:'Avg Fastball',    savantKey:'velo_pct',     val:savantData?.avg_fastball?(savantData.avg_fastball+' mph'):'--', sub:'Velo', bar:savantData?.avg_fastball?(parseFloat(savantData.avg_fastball)-85)/20:0, estimatedPct:savantData?.velo_pct??null},
-    {label:'Exit Velocity',   savantKey:'ev_pct',       val:savantData?.exit_velocity?(savantData.exit_velocity+' mph'):'--', sub:'Avg EV against', bar:savantData?.exit_velocity?(parseFloat(savantData.exit_velocity)-80)/30:0, estimatedPct:savantData?.ev_pct??null},
-    {label:'Hard Hit%',       savantKey:'hard_hit_pct', val:savantData?.hard_hit??'--',     sub:'>=95mph allowed', bar:savantData?.hard_hit?parseFloat(savantData.hard_hit)/60:0, lowerIsBetter:true, estimatedPct:savantData?.hard_hit_pct??null},
-    {label:'Barrel%',         savantKey:'barrel_pct',   val:savantData?.barrel??'--',       sub:'Barrels allowed', bar:savantData?.barrel?parseFloat(savantData.barrel)/20:0, lowerIsBetter:true, estimatedPct:savantData?.barrel_pct??null},
-    {label:'xBA against',     savantKey:'xba_pct',      val:savantData?.xba??'--',          sub:'Expected BA vs', bar:savantData?.xba?parseFloat(savantData.xba)/.400:0, lowerIsBetter:true, estimatedPct:savantData?.xba_pct??null},
-    {label:'xwOBA against',   savantKey:'xwoba_pct',    val:savantData?.xwoba??'--',        sub:'Expected wOBA vs', bar:savantData?.xwoba?parseFloat(savantData.xwoba)/.500:0, lowerIsBetter:true, estimatedPct:savantData?.xwoba_pct??null},
+    {label:'xERA',            savantKey:'xera_pct',      val:xeraV??'--',   sub:'Expected ERA', bar:xeraV?Math.max(0,1-(parseFloat(xeraV)/7)):0, lowerIsBetter:true, estimatedPct:savantData?.xera_pct ?? estimatePct('xera',parseFloat(xeraV??5),true)},
+    {label:'Whiff%',          savantKey:'whiff_pct',     val:savantData?.whiff??'--',        sub:'Swing & miss', bar:savantData?.whiff?parseFloat(savantData.whiff)/40:0, estimatedPct:savantData?.whiff_pct ?? null},
+    {label:'Avg Fastball',    savantKey:'velo_pct',      val:savantData?.avg_fastball?(savantData.avg_fastball+' mph'):'--', sub:'Velo', bar:savantData?.avg_fastball?(parseFloat(savantData.avg_fastball)-85)/20:0, estimatedPct:savantData?.velo_pct ?? null},
+    {label:'Exit Velocity',   savantKey:'ev_pct',        val:savantData?.exit_velocity?(savantData.exit_velocity+' mph'):'--', sub:'Avg EV against', bar:savantData?.exit_velocity?(parseFloat(savantData.exit_velocity)-80)/30:0, estimatedPct:savantData?.ev_pct ?? null},
+    {label:'Hard Hit%',       savantKey:'hard_hit_pct',  val:savantData?.hard_hit??'--',     sub:'>=95mph allowed', bar:savantData?.hard_hit?parseFloat(savantData.hard_hit)/60:0, lowerIsBetter:true, estimatedPct:savantData?.hard_hit_pct ?? null},
+    {label:'Barrel%',         savantKey:'barrel_pct',    val:savantData?.barrel??'--',       sub:'Barrels allowed', bar:savantData?.barrel?parseFloat(savantData.barrel)/20:0, lowerIsBetter:true, estimatedPct:savantData?.barrel_pct ?? null},
+    {label:'xBA against',     savantKey:'xba_pct',       val:savantData?.xba??'--',          sub:'Expected BA vs', bar:savantData?.xba?parseFloat(savantData.xba)/.400:0, lowerIsBetter:true, estimatedPct:savantData?.xba_pct ?? null},
+    {label:'xwOBA against',   savantKey:'xwoba_pct',     val:savantData?.xwoba??'--',        sub:'Expected wOBA vs', bar:savantData?.xwoba?parseFloat(savantData.xwoba)/.500:0, lowerIsBetter:true, estimatedPct:savantData?.xwoba_pct ?? null},
   ];
 }
 

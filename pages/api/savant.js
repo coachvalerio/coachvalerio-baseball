@@ -1,119 +1,102 @@
 // pages/api/savant.js
-// TWO endpoints must be merged:
-//   1. /leaderboard/expected_statistics?csv=true  → raw stat VALUES (est_ba, exit_velocity_avg, etc.)
-//   2. /leaderboard/percentile-rankings?csv=true  → percentile RANKS (xba=55 means 55th percentile)
-// They are DIFFERENT data — never mix them.
+// Three Savant CSV endpoints merged:
+//   /leaderboard/expected_statistics → xBA, xSLG, xwOBA (raw decimals)
+//   /leaderboard/statcast            → exit velo, launch angle, hard hit%, barrel%, sweet spot%
+//   /leaderboard/percentile-rankings → all percentile ranks (0-100 integers)
+// Sprint speed and OAA come from their own separate endpoints.
 
 export default async function handler(req, res) {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'Missing player id' });
 
-  const year = new Date().getFullYear();
-  const years = [year, year - 1]; // fallback to prior year if not enough data yet
+  const year  = new Date().getFullYear();
+  const years = [year, year - 1];
 
   for (const yr of years) {
     for (const type of ['batter', 'pitcher']) {
       try {
-        const HEADERS = {
+        const H = {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          'Accept': 'text/html,*/*',
           'Referer': 'https://baseballsavant.mlb.com',
         };
 
-        // ── Fetch all three CSVs in parallel
-        // expected_statistics → xBA/xSLG/xwOBA raw values
-        // statcast            → exit velo, launch angle, hard hit%, barrel%, sweet spot%
-        // percentile-rankings → ALL percentile ranks (0-100)
-        const [statsRes, statcastRes, pctRes] = await Promise.all([
-          fetch(`https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
-          fetch(`https://baseballsavant.mlb.com/leaderboard/statcast?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
-          fetch(`https://baseballsavant.mlb.com/leaderboard/percentile-rankings?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
+        // ── 1. Fetch all three stat CSVs in parallel
+        const [xstatTxt, statcastTxt, pctTxt] = await Promise.all([
+          fetch(`https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: H }).then(r => r.ok ? r.text() : ''),
+          fetch(`https://baseballsavant.mlb.com/leaderboard/statcast?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: H }).then(r => r.ok ? r.text() : ''),
+          fetch(`https://baseballsavant.mlb.com/leaderboard/percentile-rankings?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: H }).then(r => r.ok ? r.text() : ''),
         ]);
 
-        if (!statsRes.ok && !pctRes.ok && !statcastRes.ok) continue;
+        // ── 2. Parse CSVs and find this player in each
+        const find = (txt) => {
+          if (!txt || txt.trimStart().startsWith('<')) return null;
+          const rows = parseCSV(txt);
+          return rows.find(r =>
+            String(r.player_id) === String(id) ||
+            String(r.mlbam_id)  === String(id) ||
+            String(r.batter)    === String(id) ||
+            String(r.pitcher)   === String(id)
+          ) ?? null;
+        };
 
-        // Parse all three CSVs
-        const statRows    = statsRes.ok    ? parseCSV(await statsRes.text())    : [];
-        const statcastRows= statcastRes.ok ? parseCSV(await statcastRes.text()) : [];
-        const pctRows     = pctRes.ok      ? parseCSV(await pctRes.text())      : [];
+        const xstatRow    = find(xstatTxt);    // expected stats (xBA/xSLG/xwOBA)
+        const statcastRow = find(statcastTxt); // statcast (EV/LA/HH%/barrel%/sweet spot%)
+        const pctRow      = find(pctTxt);      // percentile ranks
 
-        // Find player in each
-        const findPlayer = (rows) => rows.find(r =>
-          String(r.player_id) === String(id) ||
-          String(r.mlbam_id)  === String(id) ||
-          String(r.batter)    === String(id) ||
-          String(r.pitcher)   === String(id)
-        );
+        if (!xstatRow && !statcastRow && !pctRow) continue;
 
-        const statRow     = findPlayer(statRows);
-        const statcastRow = findPlayer(statcastRows);
-        const pctRow      = findPlayer(pctRows);
+        // Merge all raw-value rows — statcast base, xstat overrides for expected stats
+        const vals = { ...(statcastRow ?? {}), ...(xstatRow ?? {}) };
+        const pcts = pctRow ?? {};
 
-        if (!statRow && !pctRow && !statcastRow) continue;
-
-        // ── expected_statistics CSV columns (raw values):
-        // Batter: player_id, est_ba, est_slg, est_woba, exit_velocity_avg,
-        //         launch_angle_avg, barrel_batted_rate, hard_hit_percent,
-        //         avg_best_speed, sweet_spot_percent
-        // Pitcher: player_id, est_ba, est_slg, est_woba, exit_velocity_avg,
-        //          launch_angle_avg, barrel_batted_rate, hard_hit_percent,
-        //          xera (sometimes p_xera), ff_avg_speed, whiff_percent
-
-        // ── percentile-rankings CSV columns (0–100 RANK values, NOT raw stats):
-        // Each column IS the percentile rank for that metric.
-        // Batter columns typically: xba, xslg, xwoba, exit_velocity, hard_hit,
-        //   barrel, sprint_speed, strikeout_percent, walk_percent, etc.
-        // Pitcher columns: xera, fastball_speed, whiff_percent, etc.
-
-        // ── Sprint speed (separate leaderboard)
+        // ── 3. Sprint speed (separate endpoint)
         let sprintVal = null, sprintPct = null;
         try {
-          const sprintTxt = await fetch(
+          const stxt = await fetch(
             `https://baseballsavant.mlb.com/leaderboard/sprint_speed?year=${yr}&position=&team=&min=10&csv=true`,
-            { headers: HEADERS }
+            { headers: H }
           ).then(r => r.ok ? r.text() : '');
-          if (sprintTxt && !sprintTxt.trimStart().startsWith('<')) {
-            const sRows = parseCSV(sprintTxt);
-            const sp = sRows.find(r =>
-              String(r.player_id) === String(id) || String(r.mlbam_id) === String(id)
-            );
-            if (sp) {
-              // r_sprint_speed = actual ft/s value (~27-30 range)
-              // hp_to_1b = home-to-first time in seconds — NOT what we want
-              sprintVal = sp.r_sprint_speed ?? sp.sprint_speed ?? null;
-              // percentile rank column
-              sprintPct = numOrNull(sp.r_sprint_speed_pct ?? sp.sprint_speed_pct ?? sp.percentile ?? sp.pct_rank);
+          const sp = find(stxt);
+          if (sp) {
+            sprintVal = sp.r_sprint_speed ?? sp.sprint_speed ?? null;
+            const rawPct = numOrNull(sp.r_sprint_speed_pct ?? sp.sprint_speed_pct ?? sp.pct_rank ?? sp.percentile);
+            if (rawPct !== null) {
+              sprintPct = rawPct;
+            } else if (sprintVal) {
+              const sv = parseFloat(sprintVal);
+              sprintPct = isNaN(sv) ? null
+                : sv >= 29.5 ? 99 : sv >= 29.0 ? 95 : sv >= 28.5 ? 90
+                : sv >= 28.0 ? 80 : sv >= 27.5 ? 70 : sv >= 27.0 ? 55
+                : sv >= 26.5 ? 40 : sv >= 26.0 ? 28 : sv >= 25.5 ? 18 : 8;
             }
           }
         } catch {}
 
-        // ── OAA (outs above average)
+        // ── 4. Outs Above Average (separate endpoint)
         let oaaVal = null, oaaPct = null;
         try {
-          const oaaTxt = await fetch(
+          const otxt = await fetch(
             `https://baseballsavant.mlb.com/leaderboard/outs_above_average?type=Fielder&inn=&pos=&year=${yr}&team=&min=q&csv=true`,
-            { headers: HEADERS }
+            { headers: H }
           ).then(r => r.ok ? r.text() : '');
-          if (oaaTxt && !oaaTxt.trimStart().startsWith('<')) {
-            const oRows = parseCSV(oaaTxt);
-            const op = oRows.find(r =>
-              String(r.player_id) === String(id) || String(r.mlbam_id) === String(id)
-            );
-            if (op) {
-              oaaVal = op.outs_above_average ?? op.oaa ?? null;
-              oaaPct = numOrNull(op.outs_above_average_pct ?? op.oaa_pct ?? op.percentile);
+          const op = find(otxt);
+          if (op) {
+            oaaVal = op.outs_above_average ?? op.oaa ?? null;
+            const rawPct = numOrNull(op.outs_above_average_pct ?? op.oaa_pct ?? op.percentile ?? op.pct_rank);
+            if (rawPct !== null) {
+              oaaPct = rawPct;
+            } else if (oaaVal !== null) {
+              const o = parseInt(oaaVal);
+              oaaPct = o >= 15 ? 99 : o >= 10 ? 95 : o >= 6 ? 88 : o >= 3 ? 75
+                : o >= 1 ? 62 : o === 0 ? 50 : o >= -2 ? 38 : o >= -5 ? 25 : 8;
             }
           }
         } catch {}
 
-        // Merge all three sources — statcast leaderboard has EV/barrel/hard-hit/launch angle
-        const s = { ...(statcastRow ?? {}), ...(statRow ?? {}) };  // statcast base, expected_stats overrides
-        const p = pctRow ?? {};   // percentile ranks
-
-        // Helper: get raw numeric value from stats row
+        // ── 5. Helper: read raw numeric value from merged vals object
         const raw = (...keys) => {
           for (const k of keys) {
-            const v = s[k];
+            const v = vals[k];
             if (v !== undefined && v !== '' && v !== 'null' && v !== 'NA') {
               const n = parseFloat(v);
               if (!isNaN(n)) return n;
@@ -121,10 +104,11 @@ export default async function handler(req, res) {
           }
           return null;
         };
-        // Helper: get percentile rank (integer 0-100) from pct row
+
+        // Helper: read percentile rank (0-100 int) from pcts object
         const pct = (...keys) => {
           for (const k of keys) {
-            const v = p[k];
+            const v = pcts[k];
             if (v !== undefined && v !== '' && v !== 'null' && v !== 'NA') {
               const n = parseFloat(v);
               if (!isNaN(n)) return Math.round(n);
@@ -133,69 +117,90 @@ export default async function handler(req, res) {
           return null;
         };
 
-        const fmtDec = (n, d) => n != null ? n.toFixed(d) : null;
-        const fmtPct = (n) => n != null ? (n > 1 ? n.toFixed(1) : (n * 100).toFixed(1)) + '%' : null;
+        const dec  = (n, d) => n != null ? n.toFixed(d) : null;
+        const pctF = (n) => n != null ? (n > 1 ? n : n * 100).toFixed(1) + '%' : null;
 
+        // ── 6. Compute estimated percentiles for metrics Savant doesn't rank
+        // Sweet Spot% — MLB avg ~33%, elite ~40%+
+        const ssRaw = raw('sweet_spot_percent', 'sweet_spot', 'sweet_spot_pct', 'ss_percent');
+        const sweetSpotPct = ssRaw != null
+          ? ssRaw >= 40 ? 90 : ssRaw >= 37 ? 80 : ssRaw >= 34 ? 65
+          : ssRaw >= 31 ? 50 : ssRaw >= 28 ? 35 : 20
+          : null;
+
+        // Launch Angle — optimal is 10–18°, MLB avg ~12–14°
+        const laRaw = raw('avg_launch_angle', 'launch_angle_avg', 'la_avg', 'avg_la', 'launch_angle');
+        const laDisplay = laRaw != null ? laRaw.toFixed(1) + '\u00b0' : null;
+        const laPct = laRaw != null
+          ? (laRaw >= 10 && laRaw <= 18) ? 85
+          : (laRaw >= 7  && laRaw <= 22) ? 65
+          : (laRaw >= 4  && laRaw <= 26) ? 45
+          : 25
+          : null;
+
+        // ── 7. Build and return response
         if (type === 'batter') {
           return res.status(200).json({
             available: true, playerType: 'batter', season: yr,
 
-            // ── RAW values (from expected_statistics CSV)
-            xba:           fmtDec(raw('est_ba','xba_raw'), 3),
-            xslg:          fmtDec(raw('est_slg','xslg_raw'), 3),
-            xwoba:         fmtDec(raw('est_woba','xwoba_raw'), 3),
-            exit_velocity: fmtDec(raw('avg_hit_speed','exit_velocity_avg','avg_exit_velocity','ev_avg'), 1),
-            launch_angle:  fmtDec(raw('avg_launch_angle','launch_angle_avg','la_avg'), 1),
-            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate','brl_pa','hard_hit')),
-            barrel:        fmtPct(raw('brl_pa','barrel_batted_rate','barrel_rate','barrels_per_pa_percent','brl_percent')),
-            sweet_spot:    fmtPct(raw('sweet_spot_percent','sweet_spot')),
-            sweet_spot:    fmtPct(raw('sweet_spot_percent')),
+            // Raw displayed values
+            xba:           dec(raw('est_ba', 'xba'), 3),
+            xslg:          dec(raw('est_slg', 'xslg'), 3),
+            xwoba:         dec(raw('est_woba', 'xwoba'), 3),
+            exit_velocity: dec(raw('avg_hit_speed', 'exit_velocity_avg', 'avg_exit_velocity', 'ev_avg'), 1),
+            launch_angle:  laDisplay,
+            hard_hit:      pctF(raw('hard_hit_percent', 'hard_hit_rate', 'hard_hit')),
+            barrel:        pctF(raw('brl_pa', 'barrel_batted_rate', 'barrel_rate', 'brl_percent')),
+            sweet_spot:    pctF(ssRaw),
             sprint_speed:  sprintVal ? parseFloat(sprintVal).toFixed(1) : null,
             outs_above_avg: oaaVal,
 
-            // ── PERCENTILE ranks (from percentile-rankings CSV — these ARE the 0-100 numbers)
-            xba_pct:       pct('xba','est_ba_pct','expected_ba_pct'),
-            xslg_pct:      pct('xslg','est_slg_pct','expected_slg_pct'),
-            xwoba_pct:     pct('xwoba','est_woba_pct','expected_woba_pct'),
-            ev_pct:        pct('exit_velocity','avg_hit_speed_pct','exit_velocity_avg_pct','ev_pct'),
-            hard_hit_pct:  pct('hard_hit','hard_hit_percent_pct','hard_hit_pct','brl_pa_pct'),
-            barrel_pct:    pct('barrel','barrel_batted_rate_pct','barrel_pct','brl_pa_pct'),
-            avg_pct:       pct('batting_avg','batting_average','ba_pct','avg_pct'),
-            obp_pct:       pct('on_base_percent','obp','obp_pct'),
-            slg_pct:       pct('slg','slg_pct','slugging_pct'),
-            ops_pct:       pct('on_base_plus_slg','ops','ops_pct'),
-            k_pct:         pct('strikeout_percent','k_percent','so_pct','k_pct'),
-            bb_pct:        pct('walk_percent','bb_percent','bb_pct'),
-            sprint_pct:    sprintPct,
-            oaa_pct:       oaaPct,
+            // Percentile ranks — from Savant CSV where available, estimated otherwise
+            xba_pct:        pct('xba', 'est_ba'),
+            xslg_pct:       pct('xslg', 'est_slg'),
+            xwoba_pct:      pct('xwoba', 'est_woba'),
+            ev_pct:         pct('exit_velocity', 'exit_velocity_avg', 'avg_hit_speed', 'ev_avg'),
+            hard_hit_pct:   pct('hard_hit', 'hard_hit_percent', 'hard_hit_rate'),
+            barrel_pct:     pct('barrel', 'brl_pa', 'barrel_batted_rate'),
+            sweet_spot_pct: sweetSpotPct,
+            launch_angle_pct: laPct,
+            avg_pct:        pct('batting_avg', 'batting_average', 'ba', 'avg'),
+            obp_pct:        pct('on_base_percent', 'obp', 'on_base_pct'),
+            slg_pct:        pct('slg', 'slugging_pct'),
+            ops_pct:        pct('on_base_plus_slg', 'ops'),
+            k_pct:          pct('strikeout_percent', 'k_percent', 'strikeout_pct'),
+            bb_pct:         pct('walk_percent', 'bb_percent', 'walk_pct'),
+            sprint_pct:     sprintPct,
+            oaa_pct:        oaaPct,
           });
+
         } else {
           return res.status(200).json({
             available: true, playerType: 'pitcher', season: yr,
 
-            // ── RAW values
-            xera:          fmtDec(raw('xera','p_xera','est_era'), 2),
-            avg_fastball:  fmtDec(raw('ff_avg_speed','fastball_avg_speed','avg_fastball'), 1),
-            whiff:         fmtPct(raw('whiff_percent','whiff_pct','swing_miss_pct')),
-            exit_velocity: fmtDec(raw('avg_hit_speed','exit_velocity_avg','avg_exit_velocity','ev_avg'), 1),
-            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate','brl_pa','hard_hit')),
-            barrel:        fmtPct(raw('brl_pa','barrel_batted_rate','barrel_rate','brl_percent')),
-            xba:           fmtDec(raw('est_ba'), 3),
-            xwoba:         fmtDec(raw('est_woba'), 3),
+            // Raw values
+            xera:          dec(raw('xera', 'p_xera', 'est_era'), 2),
+            avg_fastball:  dec(raw('ff_avg_speed', 'fastball_avg_speed', 'avg_fastball'), 1),
+            whiff:         pctF(raw('whiff_percent', 'whiff_pct', 'swing_miss_pct')),
+            exit_velocity: dec(raw('avg_hit_speed', 'exit_velocity_avg', 'ev_avg'), 1),
+            hard_hit:      pctF(raw('hard_hit_percent', 'hard_hit_rate', 'hard_hit')),
+            barrel:        pctF(raw('brl_pa', 'barrel_batted_rate', 'barrel_rate', 'brl_percent')),
+            xba:           dec(raw('est_ba', 'xba'), 3),
+            xwoba:         dec(raw('est_woba', 'xwoba'), 3),
 
-            // ── PERCENTILE ranks
-            xera_pct:      pct('xera','p_xera_pct','est_era_pct'),
-            velo_pct:      pct('fastball_speed','ff_avg_speed_pct','velo_pct'),
-            whiff_pct:     pct('whiff_percent','whiff_pct_rank'),
-            ev_pct:        pct('exit_velocity','exit_velocity_avg_pct'),
-            hard_hit_pct:  pct('hard_hit','hard_hit_percent_pct'),
-            barrel_pct:    pct('barrel','barrel_batted_rate_pct'),
-            xba_pct:       pct('xba','est_ba_pct'),
-            xwoba_pct:     pct('xwoba','est_woba_pct'),
-            era_pct:       pct('era','era_pct','p_era_pct'),
-            whip_pct:      pct('whip','whip_pct','p_whip_pct'),
-            k9_pct:        pct('k_per_9','k9_pct','p_k_pct'),
-            bb9_pct:       pct('bb_per_9','bb9_pct','p_bb_pct'),
+            // Percentile ranks
+            xera_pct:      pct('xera', 'p_xera', 'est_era'),
+            velo_pct:      pct('fastball_speed', 'ff_avg_speed', 'avg_fastball'),
+            whiff_pct:     pct('whiff_percent', 'whiff_pct'),
+            ev_pct:        pct('exit_velocity', 'exit_velocity_avg', 'avg_hit_speed'),
+            hard_hit_pct:  pct('hard_hit', 'hard_hit_percent', 'hard_hit_rate'),
+            barrel_pct:    pct('barrel', 'brl_pa', 'barrel_batted_rate'),
+            xba_pct:       pct('xba', 'est_ba'),
+            xwoba_pct:     pct('xwoba', 'est_woba'),
+            era_pct:       pct('era', 'p_era'),
+            whip_pct:      pct('whip', 'p_whip'),
+            k9_pct:        pct('k_per_9', 'k9', 'k_percent'),
+            bb9_pct:       pct('bb_per_9', 'bb9', 'bb_percent'),
           });
         }
 
@@ -206,6 +211,7 @@ export default async function handler(req, res) {
   return res.status(200).json({ available: false });
 }
 
+// ── CSV parser — handles quoted fields with embedded commas
 function parseCSV(text) {
   if (!text || text.trimStart().startsWith('<')) return [];
   const lines = text.trim().split('\n');
