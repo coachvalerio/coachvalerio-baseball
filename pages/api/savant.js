@@ -20,17 +20,22 @@ export default async function handler(req, res) {
           'Referer': 'https://baseballsavant.mlb.com',
         };
 
-        // ── Fetch both CSVs in parallel
-        const [statsRes, pctRes] = await Promise.all([
+        // ── Fetch all three CSVs in parallel
+        // expected_statistics → xBA/xSLG/xwOBA raw values
+        // statcast            → exit velo, launch angle, hard hit%, barrel%, sweet spot%
+        // percentile-rankings → ALL percentile ranks (0-100)
+        const [statsRes, statcastRes, pctRes] = await Promise.all([
           fetch(`https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
+          fetch(`https://baseballsavant.mlb.com/leaderboard/statcast?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
           fetch(`https://baseballsavant.mlb.com/leaderboard/percentile-rankings?type=${type}&year=${yr}&position=&team=&min=q&csv=true`, { headers: HEADERS }),
         ]);
 
-        if (!statsRes.ok && !pctRes.ok) continue;
+        if (!statsRes.ok && !pctRes.ok && !statcastRes.ok) continue;
 
-        // Parse both CSVs
-        const statRows = statsRes.ok ? parseCSV(await statsRes.text()) : [];
-        const pctRows  = pctRes.ok  ? parseCSV(await pctRes.text())  : [];
+        // Parse all three CSVs
+        const statRows    = statsRes.ok    ? parseCSV(await statsRes.text())    : [];
+        const statcastRows= statcastRes.ok ? parseCSV(await statcastRes.text()) : [];
+        const pctRows     = pctRes.ok      ? parseCSV(await pctRes.text())      : [];
 
         // Find player in each
         const findPlayer = (rows) => rows.find(r =>
@@ -40,10 +45,11 @@ export default async function handler(req, res) {
           String(r.pitcher)   === String(id)
         );
 
-        const statRow = findPlayer(statRows);
-        const pctRow  = findPlayer(pctRows);
+        const statRow     = findPlayer(statRows);
+        const statcastRow = findPlayer(statcastRows);
+        const pctRow      = findPlayer(pctRows);
 
-        if (!statRow && !pctRow) continue;
+        if (!statRow && !pctRow && !statcastRow) continue;
 
         // ── expected_statistics CSV columns (raw values):
         // Batter: player_id, est_ba, est_slg, est_woba, exit_velocity_avg,
@@ -100,8 +106,9 @@ export default async function handler(req, res) {
           }
         } catch {}
 
-        const s = statRow ?? {};  // raw values
-        const p = pctRow  ?? {};  // percentile ranks
+        // Merge all three sources — statcast leaderboard has EV/barrel/hard-hit/launch angle
+        const s = { ...(statcastRow ?? {}), ...(statRow ?? {}) };  // statcast base, expected_stats overrides
+        const p = pctRow ?? {};   // percentile ranks
 
         // Helper: get raw numeric value from stats row
         const raw = (...keys) => {
@@ -137,10 +144,11 @@ export default async function handler(req, res) {
             xba:           fmtDec(raw('est_ba','xba_raw'), 3),
             xslg:          fmtDec(raw('est_slg','xslg_raw'), 3),
             xwoba:         fmtDec(raw('est_woba','xwoba_raw'), 3),
-            exit_velocity: fmtDec(raw('exit_velocity_avg','avg_exit_velocity','avg_hit_speed'), 1),
-            launch_angle:  fmtDec(raw('launch_angle_avg','avg_launch_angle'), 1),
-            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate')),
-            barrel:        fmtPct(raw('barrel_batted_rate','barrel_rate','barrels_per_pa_percent')),
+            exit_velocity: fmtDec(raw('avg_hit_speed','exit_velocity_avg','avg_exit_velocity','ev_avg'), 1),
+            launch_angle:  fmtDec(raw('avg_launch_angle','launch_angle_avg','la_avg'), 1),
+            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate','brl_pa','hard_hit')),
+            barrel:        fmtPct(raw('brl_pa','barrel_batted_rate','barrel_rate','barrels_per_pa_percent','brl_percent')),
+            sweet_spot:    fmtPct(raw('sweet_spot_percent','sweet_spot')),
             sweet_spot:    fmtPct(raw('sweet_spot_percent')),
             sprint_speed:  sprintVal ? parseFloat(sprintVal).toFixed(1) : null,
             outs_above_avg: oaaVal,
@@ -149,9 +157,9 @@ export default async function handler(req, res) {
             xba_pct:       pct('xba','est_ba_pct','expected_ba_pct'),
             xslg_pct:      pct('xslg','est_slg_pct','expected_slg_pct'),
             xwoba_pct:     pct('xwoba','est_woba_pct','expected_woba_pct'),
-            ev_pct:        pct('exit_velocity','exit_velocity_avg_pct','ev_pct'),
-            hard_hit_pct:  pct('hard_hit','hard_hit_percent_pct','hard_hit_pct'),
-            barrel_pct:    pct('barrel','barrel_batted_rate_pct','barrel_pct'),
+            ev_pct:        pct('exit_velocity','avg_hit_speed_pct','exit_velocity_avg_pct','ev_pct'),
+            hard_hit_pct:  pct('hard_hit','hard_hit_percent_pct','hard_hit_pct','brl_pa_pct'),
+            barrel_pct:    pct('barrel','barrel_batted_rate_pct','barrel_pct','brl_pa_pct'),
             avg_pct:       pct('batting_avg','batting_average','ba_pct','avg_pct'),
             obp_pct:       pct('on_base_percent','obp','obp_pct'),
             slg_pct:       pct('slg','slg_pct','slugging_pct'),
@@ -169,9 +177,9 @@ export default async function handler(req, res) {
             xera:          fmtDec(raw('xera','p_xera','est_era'), 2),
             avg_fastball:  fmtDec(raw('ff_avg_speed','fastball_avg_speed','avg_fastball'), 1),
             whiff:         fmtPct(raw('whiff_percent','whiff_pct','swing_miss_pct')),
-            exit_velocity: fmtDec(raw('exit_velocity_avg','avg_hit_speed'), 1),
-            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate')),
-            barrel:        fmtPct(raw('barrel_batted_rate','barrel_rate')),
+            exit_velocity: fmtDec(raw('avg_hit_speed','exit_velocity_avg','avg_exit_velocity','ev_avg'), 1),
+            hard_hit:      fmtPct(raw('hard_hit_percent','hard_hit_rate','brl_pa','hard_hit')),
+            barrel:        fmtPct(raw('brl_pa','barrel_batted_rate','barrel_rate','brl_percent')),
             xba:           fmtDec(raw('est_ba'), 3),
             xwoba:         fmtDec(raw('est_woba'), 3),
 
