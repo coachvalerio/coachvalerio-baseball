@@ -87,6 +87,9 @@ export default function Home() {
         <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
+          <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
+          <a href="/transactions" style={s.navLink}>Transactions</a>
+          <a href="/compare" style={s.navLink}>Compare</a>
           <a href={`/leaders?season=${SEASON}`} style={s.navLink}>Leaders</a>
         </div>
       </nav>
