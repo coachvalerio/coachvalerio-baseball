@@ -91,6 +91,7 @@ export default function Home() {
           <a href="/teams" style={s.navLink}>Teams</a>
           <a href="/transactions" style={s.navLink}>Transactions</a>
           <a href="/compare" style={s.navLink}>Compare</a>
+          <a href="/trade" style={s.navLink}>Trade AI</a>
           <a href={`/leaders?season=${SEASON}`} style={s.navLink}>Leaders</a>
         </div>
       </nav>
