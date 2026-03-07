@@ -322,7 +322,7 @@ export default function PlayerPage() {
         {activeTab==='prediction' && (
           <div>
             <div style={{...s.secLabel,color:colors.primary}}>Today's Matchup Prediction</div>
-            <PredPanel stat={stat} isPitcher={isPit} colors={colors} careerRows={careerRows} />
+            <PredPanel stat={stat} isPitcher={isPit} colors={colors} careerRows={careerRows} id={id} />
           </div>
         )}
 
@@ -561,11 +561,20 @@ function OddsDisplay({ odds, isPitcher, colors }) {
 // ════════════════════════════════════════════════════════
 // PREDICTION — rescaled against league context
 // ════════════════════════════════════════════════════════
-function PredPanel({ stat, isPitcher, colors, careerRows }) {
-  // MLB context benchmarks for 2024/2025
-  // These represent roughly the best single-season performances
-  // so truly elite seasons score near 100
-  let score, title, bars, note;
+function PredPanel({ stat, isPitcher, colors, id }) {
+  const [matchup, setMatchup] = useState(null);
+  const [matchupLoading, setMatchupLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/predictions?playerId=${id}`)
+      .then(r => r.json())
+      .then(d => { setMatchup(d); setMatchupLoading(false); })
+      .catch(() => setMatchupLoading(false));
+  }, [id]);
+
+  // ── Base score from player's own season stats ──
+  let baseScore, title, bars, note;
 
   if (!isPitcher) {
     const avg  = parseFloat(stat.avg  ?? .230);
@@ -575,16 +584,14 @@ function PredPanel({ stat, isPitcher, colors, careerRows }) {
     const sb   = parseInt(stat.stolenBases ?? 0);
     const obp  = parseFloat(stat.obp  ?? .310);
 
-    // League-best benchmarks (Judge 2024: .322 avg, 1.159 ops, 58 HR)
-    const avgScore  = Math.min(100, (avg  / .340) * 100);   // .340 = elite
-    const opsScore  = Math.min(100, (ops  / 1.100) * 100);  // 1.100 = MVP
-    const hrScore   = Math.min(100, (hr   / 55)   * 100);   // 55 = elite
-    const rbiScore  = Math.min(100, (rbi  / 115)  * 100);   // 115 = elite
-    const sbScore   = Math.min(100, (sb   / 50)   * 100);   // 50 = elite
-    const obpScore  = Math.min(100, (obp  / .420)  * 100);  // .420 = elite
+    const avgScore  = Math.min(100, (avg  / .340) * 100);
+    const opsScore  = Math.min(100, (ops  / 1.100) * 100);
+    const hrScore   = Math.min(100, (hr   / 55)   * 100);
+    const rbiScore  = Math.min(100, (rbi  / 115)  * 100);
+    const sbScore   = Math.min(100, (sb   / 50)   * 100);
+    const obpScore  = Math.min(100, (obp  / .420)  * 100);
 
-    // Weighted composite — OPS and AVG matter most
-    score = Math.round(
+    baseScore = Math.round(
       avgScore  * 0.22 +
       opsScore  * 0.28 +
       hrScore   * 0.18 +
@@ -593,43 +600,117 @@ function PredPanel({ stat, isPitcher, colors, careerRows }) {
       sbScore   * 0.07
     );
 
+    const hitAdj  = matchup?.matchup?.hitAdj  ?? 0;
+    const parkAdj = matchup?.matchup?.parkAdj ?? 0;
+    const score   = Math.max(5, Math.min(99, Math.round(baseScore * (1 + hitAdj + parkAdj * 0.4))));
+
     title = score >= 90 ? 'MVP-CALIBER PERFORMANCE' :
             score >= 75 ? 'ELITE PERFORMANCE EXPECTED' :
             score >= 60 ? 'ABOVE AVERAGE PROJECTION' :
             score >= 45 ? 'AVERAGE PROJECTION' :
-            score >= 30 ? 'BELOW AVERAGE PROJECTION' : 'STRUGGLING — TOUGH MATCHUP';
+            score >= 30 ? 'BELOW AVERAGE PROJECTION' : 'TOUGH MATCHUP AHEAD';
 
-    // Probability bars — anchored to real averages
-    // League avg hit rate ~26%, Judge-tier ~37%
-    const hitProb = Math.round(24 + (score/100)*18);
-    const xbhProb = Math.round(6  + (score/100)*12);
-    const hrProb  = Math.round(2  + (hrScore/100)*10);
-    const multiH  = Math.round(8  + (score/100)*18);
+    const hitProb = Math.round(Math.max(12, Math.min(52, 24 + (score/100)*18)));
+    const xbhProb = Math.round(Math.max(4,  Math.min(35, 6  + (score/100)*12)));
+    const hrProb  = Math.round(Math.max(1,  Math.min(25, 2  + (hrScore/100)*10 + parkAdj*8)));
+    const multiH  = Math.round(Math.max(5,  Math.min(45, 8  + (score/100)*18)));
 
     bars = [
-      { l:'Hit Probability',   p: hitProb, desc:'Based on season AVG vs league avg' },
+      { l:'Hit Probability',   p: hitProb, desc:'Adjusted for opponent + park' },
       { l:'Extra Base Hit',    p: xbhProb, accent: true, desc:'2B, 3B, or HR' },
-      { l:'Home Run',          p: hrProb,  accent: true, desc:'Based on HR pace' },
+      { l:'Home Run',          p: hrProb,  accent: true, desc:`Park factor: ${matchup?.matchup?.parkFactor?.toFixed(2) ?? '—'}` },
       { l:'2+ Hit Game',       p: multiH,  desc:'Multi-hit performance' },
     ];
     note = `AVG ${stat.avg??'—'} · OPS ${stat.ops??'—'} · ${hr} HR · ${rbi} RBI this season. ${ops>=1.000?'Historic MVP-level season.':ops>=.900?'Elite run producer.':ops>=.800?'Above average hitter.':ops>=.700?'League average bat.':'Struggling offensively.'}`;
 
+    const grade = score>=90?'A+':score>=80?'A':score>=70?'B+':score>=60?'B':score>=50?'C+':score>=40?'C':'D';
+
+    return (
+      <>
+        {/* Matchup card — shows opponent pitcher */}
+        <MatchupCard matchup={matchup} loading={matchupLoading} colors={colors} />
+
+        <div style={s.predCard}>
+          <div style={{display:'flex',alignItems:'center',gap:'2rem',flexWrap:'wrap',marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid #1e2028'}}>
+            <div style={{textAlign:'center',flexShrink:0}}>
+              <div style={{position:'relative',width:'100px',height:'100px',margin:'0 auto'}}>
+                <svg viewBox="0 0 100 100" style={{transform:'rotate(-90deg)',width:'100%',height:'100%'}}>
+                  <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2028" strokeWidth="8"/>
+                  <circle cx="50" cy="50" r="44" fill="none" stroke={colors.primary} strokeWidth="8"
+                    strokeDasharray={`${2*Math.PI*44}`}
+                    strokeDashoffset={`${2*Math.PI*44*(1-score/100)}`}
+                    strokeLinecap="round" style={{transition:'stroke-dashoffset 1.5s ease'}}/>
+                </svg>
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,color:'#5c6070'}}>/ 100</div>
+                </div>
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
+            </div>
+            <div style={{flex:1,minWidth:'180px'}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
+              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
+              {matchup?.matchup && (
+                <div style={{marginTop:'.5rem',display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+                  {hitAdj !== 0 && (
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',
+                      padding:'.2rem .5rem',borderRadius:'4px',
+                      background: hitAdj < 0 ? 'rgba(230,53,53,.15)' : 'rgba(46,212,122,.15)',
+                      color: hitAdj < 0 ? '#e63535' : '#2ed47a'}}>
+                      {hitAdj < 0 ? '↓' : '↑'} Pitcher adj: {hitAdj > 0 ? '+' : ''}{Math.round(hitAdj*100)}%
+                    </span>
+                  )}
+                  {parkAdj !== 0 && (
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',
+                      padding:'.2rem .5rem',borderRadius:'4px',
+                      background: parkAdj > 0 ? 'rgba(46,212,122,.15)' : 'rgba(230,53,53,.15)',
+                      color: parkAdj > 0 ? '#2ed47a' : '#e63535'}}>
+                      {parkAdj > 0 ? '↑' : '↓'} Park adj: {parkAdj > 0 ? '+' : ''}{(parkAdj*100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
+            {bars.map((b,i)=>(
+              <div key={i}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.3rem'}}>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070'}}>{b.l}</span>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.85rem',fontWeight:700,color:b.accent?colors.accent:colors.primary}}>{b.p}%</span>
+                </div>
+                <div style={{height:'6px',background:'#1e2028',borderRadius:'99px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${b.p}%`,background:b.accent?colors.accent:colors.primary,borderRadius:'99px',transition:'width 1.4s cubic-bezier(.22,1,.36,1)'}}/>
+                </div>
+                {b.desc && <div style={{fontSize:'.65rem',color:'#3a3f52',marginTop:'.2rem'}}>{b.desc}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={s.infoBox}>
+          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Base score uses season stats vs league-best benchmarks. Opponent pitcher quality and park factor are then applied as live adjustments.
+        </div>
+      </>
+    );
+
   } else {
+    // ── Pitcher view ──
     const era  = parseFloat(stat.era  ?? 5.00);
     const whip = parseFloat(stat.whip ?? 1.45);
     const k9   = parseFloat(stat.strikeoutsPer9Inn ?? 7.5);
-    const bb9  = parseFloat(stat.baseOnBallsPer9Inn ?? 3.5);
     const wins = parseInt(stat.wins ?? 0);
     const ip   = parseFloat(stat.inningsPitched ?? 0);
 
-    // Benchmarks: Cole/deGrom-level = near 100
-    const eraScore  = Math.min(100, Math.max(0, ((6.00 - era)  / 4.50) * 100));  // 1.50=100, 6.00=0
-    const whipScore = Math.min(100, Math.max(0, ((2.00 - whip) / 1.20) * 100));  // 0.80=100, 2.00=0
-    const k9Score   = Math.min(100, (k9 / 14.0) * 100);   // 14 K/9 = elite
-    const bb9Score  = Math.min(100, Math.max(0, ((6.0 - bb9) / 4.5) * 100));    // 1.5=100, 6.0=0
+    const eraScore  = Math.min(100, Math.max(0, ((6.00 - era)  / 4.50) * 100));
+    const whipScore = Math.min(100, Math.max(0, ((2.00 - whip) / 1.20) * 100));
+    const k9Score   = Math.min(100, (k9 / 14.0) * 100);
+    const bb9Score  = Math.min(100, Math.max(0, ((6.0 - parseFloat(stat.baseOnBallsPer9Inn ?? 3.5)) / 4.5) * 100));
     const ipScore   = Math.min(100, (ip / 200) * 100);
 
-    score = Math.round(
+    const score = Math.round(
       eraScore  * 0.30 +
       whipScore * 0.25 +
       k9Score   * 0.22 +
@@ -645,72 +726,175 @@ function PredPanel({ stat, isPitcher, colors, careerRows }) {
 
     const qsProb   = Math.round(20 + (score/100)*60);
     const winProb  = Math.round(15 + (score/100)*45);
-    const kProp    = Math.round(k9 * 0.55); // expected K in avg start
+    const kProp    = Math.round(k9 * 0.55);
     const lowWhip  = Math.round(15 + (whipScore/100)*65);
 
     bars = [
-      { l:'Quality Start',       p: qsProb,  desc:'6+ IP, ≤3 ER' },
-      { l:'Win Probability',     p: winProb, accent: true, desc:'Based on ERA/WHIP' },
-      { l:`${kProp}+ Strikeouts`,p: Math.round(40 + (k9Score/100)*45), accent: true, desc:'Based on K/9 pace' },
-      { l:'Low WHIP Game',       p: lowWhip, desc:'WHIP < 1.10' },
+      { l:'Quality Start',        p: qsProb,  desc:'6+ IP, ≤3 ER' },
+      { l:'Win Probability',      p: winProb, accent: true, desc:'Based on ERA/WHIP' },
+      { l:`${kProp}+ Strikeouts`, p: Math.round(40 + (k9Score/100)*45), accent: true, desc:'Based on K/9 pace' },
+      { l:'Low WHIP Game',        p: lowWhip, desc:'WHIP < 1.10' },
     ];
     note = `ERA ${stat.era??'—'} · WHIP ${stat.whip??'—'} · K/9 ${stat.strikeoutsPer9Inn??'—'} · ${wins}W this season. ${era<=2.5?'Historically dominant.':era<=3.25?'Ace-caliber season.':era<=4.00?'Solid starter.':era<=5.00?'Inconsistent season.':'Struggling significantly.'}`;
+
+    const grade = score>=90?'A+':score>=80?'A':score>=70?'B+':score>=60?'B':score>=50?'C+':score>=40?'C':'D';
+
+    return (
+      <>
+        <MatchupCard matchup={matchup} loading={matchupLoading} colors={colors} isPitcher />
+
+        <div style={s.predCard}>
+          <div style={{display:'flex',alignItems:'center',gap:'2rem',flexWrap:'wrap',marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid #1e2028'}}>
+            <div style={{textAlign:'center',flexShrink:0}}>
+              <div style={{position:'relative',width:'100px',height:'100px',margin:'0 auto'}}>
+                <svg viewBox="0 0 100 100" style={{transform:'rotate(-90deg)',width:'100%',height:'100%'}}>
+                  <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2028" strokeWidth="8"/>
+                  <circle cx="50" cy="50" r="44" fill="none" stroke={colors.primary} strokeWidth="8"
+                    strokeDasharray={`${2*Math.PI*44}`}
+                    strokeDashoffset={`${2*Math.PI*44*(1-score/100)}`}
+                    strokeLinecap="round" style={{transition:'stroke-dashoffset 1.5s ease'}}/>
+                </svg>
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,color:'#5c6070'}}>/ 100</div>
+                </div>
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
+            </div>
+            <div style={{flex:1,minWidth:'180px'}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
+              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
+            {bars.map((b,i)=>(
+              <div key={i}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.3rem'}}>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070'}}>{b.l}</span>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.85rem',fontWeight:700,color:b.accent?colors.accent:colors.primary}}>{b.p}%</span>
+                </div>
+                <div style={{height:'6px',background:'#1e2028',borderRadius:'99px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${b.p}%`,background:b.accent?colors.accent:colors.primary,borderRadius:'99px',transition:'width 1.4s cubic-bezier(.22,1,.36,1)'}}/>
+                </div>
+                {b.desc && <div style={{fontSize:'.65rem',color:'#3a3f52',marginTop:'.2rem'}}>{b.desc}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={s.infoBox}>
+          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Base score uses season stats vs league-best benchmarks. Opponent pitcher quality and park factor are then applied as live adjustments.
+        </div>
+      </>
+    );
   }
-
-  // Grade label
-  const grade = score>=90?'A+':score>=80?'A':score>=70?'B+':score>=60?'B':score>=50?'C+':score>=40?'C':'D';
-
-  return (
-    <>
-      <div style={s.predCard}>
-        <div style={{display:'flex',alignItems:'center',gap:'2rem',flexWrap:'wrap',marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid #1e2028'}}>
-          {/* Score circle */}
-          <div style={{textAlign:'center',flexShrink:0}}>
-            <div style={{position:'relative',width:'100px',height:'100px',margin:'0 auto'}}>
-              <svg viewBox="0 0 100 100" style={{transform:'rotate(-90deg)',width:'100%',height:'100%'}}>
-                <circle cx="50" cy="50" r="44" fill="none" stroke="#1e2028" strokeWidth="8"/>
-                <circle cx="50" cy="50" r="44" fill="none" stroke={colors.primary} strokeWidth="8"
-                  strokeDasharray={`${2*Math.PI*44}`}
-                  strokeDashoffset={`${2*Math.PI*44*(1-score/100)}`}
-                  strokeLinecap="round" style={{transition:'stroke-dashoffset 1.5s ease'}}/>
-              </svg>
-              <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,color:'#5c6070'}}>/ 100</div>
-              </div>
-            </div>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
-          </div>
-          <div style={{flex:1,minWidth:'180px'}}>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
-            <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
-          </div>
-        </div>
-
-        {/* Probability bars */}
-        <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
-          {bars.map((b,i)=>(
-            <div key={i}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.3rem'}}>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070'}}>{b.l}</span>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.85rem',fontWeight:700,color:b.accent?colors.accent:colors.primary}}>{b.p}%</span>
-              </div>
-              <div style={{height:'6px',background:'#1e2028',borderRadius:'99px',overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${b.p}%`,background:b.accent?colors.accent:colors.primary,borderRadius:'99px',transition:'width 1.4s cubic-bezier(.22,1,.36,1)'}}/>
-              </div>
-              {b.desc && <div style={{fontSize:'.65rem',color:'#3a3f52',marginTop:'.2rem'}}>{b.desc}</div>}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={s.infoBox}>
-        ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Scores are calibrated against league-best benchmarks — a true MVP/Cy Young season scores 90–100, a league-average player scores around 45–55. Connect your backend to the MLB Schedule API + Baseball Savant for live opponent-adjusted predictions.
-      </div>
-    </>
-  );
 }
 
+// ── Matchup card component ──
+function MatchupCard({ matchup, loading, colors, isPitcher }) {
+  if (loading) return (
+    <div style={{...s.matchupCard, display:'flex', alignItems:'center', justifyContent:'center', color:'#3a3f52', fontSize:'.85rem', gap:'.5rem'}}>
+      <span style={{animation:'spin 1s linear infinite', display:'inline-block'}}>⚾</span> Loading today's matchup…
+    </div>
+  );
 
+  if (!matchup?.hasGame) return (
+    <div style={{...s.matchupCard, color:'#3a3f52', fontSize:'.85rem', textAlign:'center'}}>
+      📅 {matchup?.reason ?? 'No game today'} — projections based on season stats only.
+    </div>
+  );
+
+  const { gameInfo, pitcher, matchup: mx } = matchup;
+  const diffColor =
+    mx?.difficulty === 'ACE'        ? '#e63535' :
+    mx?.difficulty === 'TOUGH'      ? '#f5a623' :
+    mx?.difficulty === 'AVERAGE'    ? '#b8bdd0' :
+    mx?.difficulty === 'HITTABLE'   ? '#2ed47a' : '#00c2a8';
+
+  const gameTime = gameInfo?.gameTime
+    ? new Date(gameInfo.gameTime).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZoneName:'short' })
+    : '';
+
+  return (
+    <div style={s.matchupCard}>
+      {/* Header row */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', flexWrap:'wrap', gap:'.5rem'}}>
+        <div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.2em',color:'#3a3f52',marginBottom:'.2rem'}}>
+            TODAY'S MATCHUP
+          </div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',color:'#f0f2f8',letterSpacing:'.05em'}}>
+            {gameInfo.isHome ? 'vs' : '@'} {gameInfo.oppTeam}
+          </div>
+          <div style={{fontSize:'.75rem',color:'#5c6070',marginTop:'.1rem'}}>
+            {gameInfo.venue} · {gameTime}
+          </div>
+        </div>
+        <div style={{display:'flex', gap:'.5rem', alignItems:'center'}}>
+          {/* Park factor badge */}
+          <div style={{textAlign:'center',background:'#0a0b0f',border:'1px solid #1e2028',borderRadius:'6px',padding:'.4rem .7rem'}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',color: gameInfo.parkFactor >= 1.05 ? '#2ed47a' : gameInfo.parkFactor <= 0.95 ? '#e63535' : '#b8bdd0'}}>
+              {gameInfo.parkFactor?.toFixed(2) ?? '—'}
+            </div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.1em',color:'#3a3f52'}}>PARK</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pitcher section */}
+      {!pitcher ? (
+        <div style={{fontSize:'.82rem',color:'#5c6070',fontStyle:'italic'}}>Probable pitcher not yet announced</div>
+      ) : (
+        <div style={{display:'flex',alignItems:'center',gap:'1rem',background:'#0a0b0f',borderRadius:'8px',padding:'.85rem 1rem',flexWrap:'wrap'}}>
+          <img
+            src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${pitcher.id}/headshot/67/current`}
+            alt={pitcher.name}
+            style={{width:'48px',height:'48px',borderRadius:'50%',objectFit:'cover',background:'#1e2028',flexShrink:0}}
+            onError={e => e.target.style.display='none'}
+          />
+          <div style={{flex:1}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.6rem',flexWrap:'wrap'}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'1rem',color:'#f0f2f8'}}>{pitcher.name}</div>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.1em',
+                padding:'.2rem .55rem',borderRadius:'4px',border:`1px solid ${diffColor}`,color:diffColor}}>
+                {mx?.difficulty ?? '—'}
+              </span>
+            </div>
+            <div style={{display:'flex',gap:'1rem',marginTop:'.4rem',flexWrap:'wrap'}}>
+              {[
+                ['ERA',  pitcher.era],
+                ['WHIP', pitcher.whip],
+                ['K/9',  pitcher.k9],
+                ['BB/9', pitcher.bb9],
+                ['W-L',  `${pitcher.wins}-${pitcher.losses}`],
+              ].map(([lbl,val]) => (
+                <div key={lbl} style={{textAlign:'center'}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',color:colors.primary,lineHeight:1}}>{val ?? '—'}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.1em',color:'#3a3f52'}}>{lbl}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Savant data if available */}
+          {pitcher.savant && (
+            <div style={{display:'flex',gap:'.75rem',paddingLeft:'1rem',borderLeft:'1px solid #1e2028',flexWrap:'wrap'}}>
+              {[
+                ['Exit Velo',  pitcher.savant.exitVeloAllowed?.toFixed(1), 'mph allowed'],
+                ['Hard Hit%',  pitcher.savant.hardHitAllowed?.toFixed(1),  '% hard hit'],
+                ['Barrel%',    pitcher.savant.barrelAllowed?.toFixed(1),   '% barrel'],
+                ['Whiff%',     pitcher.savant.whiffPct?.toFixed(1),        '% whiff'],
+              ].filter(([,v]) => v != null).map(([lbl,val,sub]) => (
+                <div key={lbl} style={{textAlign:'center'}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',color:'#b8bdd0',lineHeight:1}}>{val}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',color:'#3a3f52'}}>{lbl}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 // ════════════════════════════════════════════════════════
 // HIGHLIGHTS TAB
 // ════════════════════════════════════════════════════════
@@ -1649,6 +1833,7 @@ const s={
   svBar:       {height:'3px',background:'#1e2028',borderRadius:'2px',marginTop:'.55rem',overflow:'hidden'},
   svBarFill:   {height:'100%',borderRadius:'2px',transition:'width 1s ease'},
   predCard:    {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.5rem',marginBottom:'2rem'},
+  matchupCard: {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem 1.5rem',marginBottom:'1.25rem'},
   infoBox:     {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem 1.4rem',fontSize:'.82rem',lineHeight:1.7,color:'#5c6070',marginBottom:'2rem'},
   savantFullLink:{display:'flex',alignItems:'center',gap:'.75rem',padding:'.9rem 1.1rem',background:'#111318',border:'1px solid',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginBottom:'2rem'},
   extLink:     {display:'flex',alignItems:'center',gap:'.72rem',padding:'.85rem 1rem',background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0'},
