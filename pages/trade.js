@@ -153,11 +153,11 @@ export default function TradePage() {
   return (
     <>
       <Head>
-        <title>AI Trade Analyzer — CoachValerio</title>
+        <title>AI Trade Analyzer — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           select{appearance:none}
           @keyframes spin{to{transform:rotate(360deg)}}
           @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -167,7 +167,7 @@ export default function TradePage() {
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -260,7 +260,7 @@ export default function TradePage() {
               value={context} onChange={e => setContext(e.target.value)}
               placeholder="Add any relevant context: team's playoff positioning, salary cap situation, prospect rankings, injury history, league type (if fantasy: H2H, roto, keeper, dynasty), scoring settings..."
               rows={3}
-              style={{ width:'100%', background:'#0a0b0f', border:'1px solid #1e2028', borderRadius:'8px', color:'#f0f2f8', fontFamily:"'Barlow',sans-serif", fontSize:'.84rem', padding:'.75rem 1rem', resize:'vertical', outline:'none', lineHeight:1.6 }}
+              style={{ width:'100%', background:'#080c12', border:'1px solid #1e2028', borderRadius:'8px', color:'#f0f2f8', fontFamily:"'Barlow',sans-serif", fontSize:'.84rem', padding:'.75rem 1rem', resize:'vertical', outline:'none', lineHeight:1.6 }}
             />
           </div>
 
@@ -387,7 +387,7 @@ export default function TradePage() {
                     colorA={colorA} colorB={colorB}
                   />
                   {isOpen && (
-                    <div style={{ marginTop:'.75rem', fontSize:'.84rem', color:'#b8bdd0', lineHeight:1.7, padding:'.75rem 1rem', background:'#0a0b0f', borderRadius:'6px', animation:'fadeIn .2s ease' }}>
+                    <div style={{ marginTop:'.75rem', fontSize:'.84rem', color:'#b8bdd0', lineHeight:1.7, padding:'.75rem 1rem', background:'#080c12', borderRadius:'6px', animation:'fadeIn .2s ease' }}>
                       {dim.analysis}
                     </div>
                   )}
@@ -406,14 +406,14 @@ export default function TradePage() {
       )}
 
       <footer style={s.footer}>
-        Powered by <span style={{ color:'#00c2a8' }}>Claude AI</span> · Data via MLB Stats API · CoachValerio.com
+        Powered by <span style={{ color:'#00c2a8' }}>Claude AI</span> · Data via MLB Stats API · Coach.com
       </footer>
     </>
   );
 }
 
 const s = {
-  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:          { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:      { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:       { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
@@ -423,12 +423,12 @@ const s = {
   heroLabel:     { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.3em',color:'#00c2a8',marginBottom:'.4rem' },
   heroTitle:     { fontFamily:"'Bebas Neue',sans-serif",fontSize:'clamp(3rem,8vw,5.5rem)',letterSpacing:'.06em',color:'#f0f2f8',lineHeight:1 },
   heroSub:       { fontSize:'.9rem',color:'#5c6070',marginTop:'.4rem',marginBottom:'2rem' },
-  modeWrap:      { display:'inline-flex',gap:'.75rem',background:'#0a0b0f',border:'1px solid #1e2028',borderRadius:'10px',padding:'.5rem' },
+  modeWrap:      { display:'inline-flex',gap:'.75rem',background:'#080c12',border:'1px solid #1e2028',borderRadius:'10px',padding:'.5rem' },
   modeBtn:       { display:'flex',alignItems:'center',gap:'.65rem',padding:'.65rem 1.1rem',borderRadius:'7px',border:'1px solid transparent',background:'transparent',color:'#5c6070',cursor:'pointer',fontFamily:"'Barlow',sans-serif",fontSize:'.84rem',transition:'all .2s',textAlign:'left' },
   modeBtnActive: { borderColor:'#00c2a8',background:'rgba(0,194,168,.1)',color:'#f0f2f8' },
   inputSection:  { maxWidth:'960px',margin:'0 auto',padding:'2rem 1.5rem' },
   inputGrid:     { display:'grid',gridTemplateColumns:'1fr 40px 1fr',gap:'0',marginBottom:'1rem',alignItems:'start' },
-  tradeBox:      { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
+  tradeBox:      { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
   tradeBoxHeader:{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'.75rem 1rem',borderBottom:'1px solid',flexWrap:'wrap',gap:'.5rem' },
   tradeBoxLabel: { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em' },
   teamSelect:    { background:'#050608',border:'1px solid',borderRadius:'4px',color:'#f0f2f8',fontFamily:"'Barlow',sans-serif",fontSize:'.78rem',padding:'.3rem .6rem',cursor:'pointer',outline:'none',maxWidth:'200px' },
@@ -442,12 +442,12 @@ const s = {
   results:       { maxWidth:'960px',margin:'0 auto',padding:'2rem 1.5rem',animation:'fadeIn .3s ease' },
   winnerBanner:  { border:'1px solid',borderRadius:'12px',padding:'1.5rem 2rem',textAlign:'center',marginBottom:'1.5rem' },
   gradeRow:      { display:'grid',gridTemplateColumns:'1fr 1.2fr 1fr',gap:'1rem',marginBottom:'1.5rem' },
-  gradeCard:     { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.25rem' },
-  riskCard:      { background:'#111318',border:'1px solid #e6353544',borderRadius:'10px',padding:'1.25rem',borderTopColor:'#e63535' },
+  gradeCard:     { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.25rem' },
+  riskCard:      { background:'#0d1117',border:'1px solid #e6353544',borderRadius:'10px',padding:'1.25rem',borderTopColor:'#e63535' },
   benefitRow:    { display:'flex',gap:'.5rem',alignItems:'flex-start',marginBottom:'.4rem' },
   secLabel:      { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',color:'#00c2a8',marginBottom:'1rem',paddingBottom:'.5rem',borderBottom:'1px solid #1e2028' },
-  dimSection:    { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
-  dimHeader:     { display:'flex',alignItems:'center',padding:'.5rem 1rem',background:'#0a0b0f',borderBottom:'1px solid #1e2028',gap:'1rem' },
+  dimSection:    { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
+  dimHeader:     { display:'flex',alignItems:'center',padding:'.5rem 1rem',background:'#080c12',borderBottom:'1px solid #1e2028',gap:'1rem' },
   dimTeamLabel:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.12em',minWidth:'80px',textAlign:'center' },
   footer:        { borderTop:'1px solid #1e2028',padding:'1.4rem',textAlign:'center',fontSize:'.74rem',color:'#5c6070',marginTop:'3rem' },
 };

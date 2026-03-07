@@ -270,18 +270,18 @@ export default function OddsBoardPage() {
   return (
     <>
       <Head>
-        <title>Odds & Value Board — CoachValerio</title>
+        <title>Odds & Value Board — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
         `}</style>
       </Head>
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -392,7 +392,7 @@ export default function OddsBoardPage() {
 }
 
 const s = {
-  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:          { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:      { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:       { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
@@ -401,8 +401,8 @@ const s = {
   heroTitle:     { fontFamily:"'Bebas Neue',sans-serif",fontSize:'clamp(2.5rem,6vw,4rem)',letterSpacing:'.06em',color:'#f0f2f8',lineHeight:1 },
   heroSub:       { fontSize:'.86rem',color:'#5c6070',marginTop:'.4rem',maxWidth:'550px',margin:'.4rem auto 1rem' },
   chipRow:       { display:'flex',flexWrap:'wrap',gap:'.5rem',justifyContent:'center',marginTop:'.75rem' },
-  chip:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',padding:'.25rem .75rem',background:'#111318',border:'1px solid #1e2028',borderRadius:'20px',color:'#5c6070' },
-  filterBar:     { borderBottom:'1px solid #1e2028',background:'#0a0b0f',position:'sticky',top:'54px',zIndex:99 },
+  chip:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',padding:'.25rem .75rem',background:'#0d1117',border:'1px solid #1e2028',borderRadius:'20px',color:'#5c6070' },
+  filterBar:     { borderBottom:'1px solid #1e2028',background:'#080c12',position:'sticky',top:'54px',zIndex:99 },
   filterInner:   { maxWidth:'1200px',margin:'0 auto',padding:'.5rem 1.5rem',display:'flex',alignItems:'center',gap:'.5rem',flexWrap:'wrap' },
   filterBtn:     { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',padding:'.35rem .85rem',background:'transparent',border:'1px solid #1e2028',borderRadius:'4px',color:'#5c6070',cursor:'pointer' },
   filterBtnActive:{ borderColor:'#00c2a8',color:'#00c2a8',background:'rgba(0,194,168,.08)' },
@@ -412,18 +412,18 @@ const s = {
   body:          { maxWidth:'1200px',margin:'0 auto',padding:'1rem 1.5rem 3rem' },
   grid:          { display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(560px,1fr))',gap:'1rem' },
   loading:       { textAlign:'center',color:'#3a3f52',padding:'4rem',fontSize:'.9rem' },
-  card:          { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
-  cardHeader:    { display:'flex',alignItems:'center',gap:'1rem',padding:'.55rem 1rem',background:'#0a0b0f',borderBottom:'1px solid #1e2028',flexWrap:'wrap' },
+  card:          { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden' },
+  cardHeader:    { display:'flex',alignItems:'center',gap:'1rem',padding:'.55rem 1rem',background:'#080c12',borderBottom:'1px solid #1e2028',flexWrap:'wrap' },
   matchup:       { display:'flex',alignItems:'center',padding:'.85rem 1rem',gap:'.5rem' },
   teamSide:      { display:'flex',alignItems:'center',gap:'.6rem',flex:1 },
   logo:          { width:'36px',height:'36px',objectFit:'contain' },
   bestBetBadge:  { margin:'0 1rem .65rem',padding:'.3rem .85rem',borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textAlign:'center' },
   oddsGrid:      { display:'flex',borderTop:'1px solid #1e2028',overflowX:'auto' },
   oddsCol:       { flex:1,minWidth:'75px',borderRight:'1px solid #1e2028' },
-  oddsColHeader: { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.6rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',padding:'.35rem .5rem',textAlign:'center',background:'#0a0b0f',borderBottom:'1px solid #1e2028' },
+  oddsColHeader: { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.6rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',padding:'.35rem .5rem',textAlign:'center',background:'#080c12',borderBottom:'1px solid #1e2028' },
   oddsTeamCell:  { padding:'.55rem .5rem',textAlign:'center',borderBottom:'1px solid #0f1018',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.8rem',fontWeight:700 },
   oddsCellWrap:  { padding:'.55rem .5rem',borderBottom:'1px solid #0f1018' },
   noOddsRow:     { padding:'.75rem 1rem',fontSize:'.78rem',color:'#3a3f52',textAlign:'center',borderTop:'1px solid #1e2028' },
-  weatherRow:    { padding:'.4rem 1rem',borderTop:'1px solid #0f1018',background:'#0a0b0f' },
+  weatherRow:    { padding:'.4rem 1rem',borderTop:'1px solid #0f1018',background:'#080c12' },
   disclaimer:    { textAlign:'center',padding:'1.5rem',fontSize:'.72rem',color:'#3a3f52',borderTop:'1px solid #1e2028',marginTop:'1rem' },
 };

@@ -14,6 +14,36 @@ const TEAM_COLORS = {
   109:'#A71930',115:'#8B74C4',119:'#005A9C',135:'#FFC425',137:'#FD5A1E',
 };
 
+// Stadium backdrop images — keyed by venue name (partial match)
+// Using high-quality Unsplash + public domain stadium photos
+const STADIUM_BACKDROPS = {
+  'Yankee':     'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1400&q=80',
+  'Fenway':     'https://images.unsplash.com/photo-1508098682722-e99c643e7f0b?w=1400&q=80',
+  'Wrigley':    'https://images.unsplash.com/photo-1529768167801-9173d94c2a42?w=1400&q=80',
+  'Dodger':     'https://images.unsplash.com/photo-1562077772-3bd90403f7f0?w=1400&q=80',
+  'Oracle':     'https://images.unsplash.com/photo-1522778526097-ce0a22ceb253?w=1400&q=80',
+  'Camden':     'https://images.unsplash.com/photo-1590239926044-4131cadd4f29?w=1400&q=80',
+  'Busch':      'https://images.unsplash.com/photo-1562077952-c8c8562007fe?w=1400&q=80',
+  'Minute Maid':'https://images.unsplash.com/photo-1567593810070-7a3d471af022?w=1400&q=80',
+  'Citizens':   'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=1400&q=80',
+  'T-Mobile':   'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=1400&q=80',
+  'Truist':     'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=1400&q=80',
+  'PNC':        'https://images.unsplash.com/photo-1566577741050-5c24c41826e4?w=1400&q=80',
+  'Globe Life': 'https://images.unsplash.com/photo-1562077951-2f8a86e40053?w=1400&q=80',
+  'Citi Field': 'https://images.unsplash.com/photo-1557318041-1ce374d55ebf?w=1400&q=80',
+  'Great American':'https://images.unsplash.com/photo-1508098682722-e99c643e7f0b?w=1400&q=80',
+  // Default fallback — generic baseball stadium
+  'default':    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80',
+};
+
+function getStadiumBg(venueName) {
+  if (!venueName) return STADIUM_BACKDROPS.default;
+  for (const [key, url] of Object.entries(STADIUM_BACKDROPS)) {
+    if (key !== 'default' && venueName.toLowerCase().includes(key.toLowerCase())) return url;
+  }
+  return STADIUM_BACKDROPS.default;
+}
+
 const PITCH_COLORS = {
   S: '#e63535', // Strike (called)
   C: '#e63535', // Strike (called)
@@ -210,11 +240,11 @@ export default function GamePage() {
   return (
     <>
       <Head>
-        <title>{gameInfo.away.abbr} @ {gameInfo.home.abbr} — CoachValerio</title>
+        <title>{gameInfo.away.abbr} @ {gameInfo.home.abbr} — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet"/>
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           table{border-collapse:collapse;width:100%}
           .play-row:hover{background:rgba(255,255,255,.025)!important}
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -224,7 +254,7 @@ export default function GamePage() {
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color:'#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:'#00c2a8' }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={{ ...s.navLink, color:'#00c2a8' }}>Scoreboard</a>
@@ -234,8 +264,13 @@ export default function GamePage() {
         </div>
       </nav>
 
-      {/* SCORE HEADER */}
-      <div style={{ ...s.header, background:`linear-gradient(135deg,#050608 0%,${homeColor}12 50%,#050608 100%)` }}>
+      {/* SCORE HEADER — stadium backdrop */}
+      <div style={{
+        ...s.header,
+        backgroundImage: `linear-gradient(to bottom, rgba(5,6,8,.55) 0%, rgba(5,6,8,.82) 60%, #050608 100%), url(${getStadiumBg(gameInfo.venue)})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center 30%',
+      }}>
         {/* Breadcrumb */}
         <div style={{ maxWidth:'960px', margin:'0 auto', padding:'0 1.5rem' }}>
           <div style={s.breadcrumb}>
@@ -480,25 +515,74 @@ export default function GamePage() {
                     </div>
                   </div>
 
-                  {/* Pitch sequence */}
+                  {/* Pitch sequence + live Statcast */}
                   {currentAtBat.pitches.length > 0 && (
                     <div style={{ marginTop:'1rem', borderTop:'1px solid #1e2028', paddingTop:'1rem' }}>
                       <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.5rem' }}>PITCH SEQUENCE</div>
                       <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem' }}>
                         {currentAtBat.pitches.map((p,i) => {
                           const col = PITCH_COLORS[p.typeCode] ?? '#5c6070';
+                          const isLast = i === currentAtBat.pitches.length - 1;
                           return (
-                            <div key={i} style={{ background:'#0a0b0f', border:`1px solid ${col}55`, borderRadius:'6px', padding:'.35rem .6rem', minWidth:'60px' }}>
-                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.68rem', fontWeight:700, color: col }}>{p.type}</div>
-                              {p.speed && <div style={{ fontSize:'.62rem', color:'#5c6070' }}>{p.speed.toFixed(1)} mph</div>}
+                            <div key={i} style={{ background: isLast ? col+'18' : '#0a0b0f', border:`1px solid ${col}${isLast?'99':'44'}`, borderRadius:'6px', padding:'.4rem .7rem', minWidth:'68px', transition:'all .2s' }}>
+                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, color: col }}>{p.type}</div>
+                              {p.speed && <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1rem', color:'#f0f2f8', lineHeight:1 }}>{p.speed.toFixed(1)}<span style={{fontSize:'.55rem',color:'#5c6070'}}> mph</span></div>}
+                              {p.spinRate && <div style={{ fontSize:'.58rem', color:'#5c6070' }}>{Math.round(p.spinRate)} rpm</div>}
                             </div>
                           );
                         })}
                       </div>
+
+                      {/* Live Statcast panel — shows on ball in play */}
+                      {currentAtBat.pitches.some(p => p.exitVelo || p.launchAngle) && (
+                        <div style={{ marginTop:'.85rem', background:'linear-gradient(135deg,#0a0f1a,#111318)', border:'1px solid #00c2a844', borderRadius:'8px', padding:'.85rem 1rem' }}>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.2em', color:'#00c2a8', marginBottom:'.6rem' }}>
+                            ⚡ LIVE STATCAST
+                          </div>
+                          <div style={{ display:'flex', gap:'1.5rem', flexWrap:'wrap' }}>
+                            {currentAtBat.pitches.filter(p => p.exitVelo).slice(-1).map((p,i) => (
+                              <div key={i} style={{ display:'flex', gap:'1.5rem', flexWrap:'wrap', width:'100%' }}>
+                                {p.exitVelo && (
+                                  <div style={{ textAlign:'center' }}>
+                                    <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.2rem' }}>EXIT VELO</div>
+                                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.8rem', color: p.exitVelo >= 100 ? '#00c2a8' : p.exitVelo >= 95 ? '#2ed47a' : '#f0f2f8', lineHeight:1 }}>
+                                      {p.exitVelo.toFixed(1)}<span style={{ fontSize:'.75rem', color:'#5c6070' }}> mph</span>
+                                    </div>
+                                  </div>
+                                )}
+                                {p.launchAngle !== null && p.launchAngle !== undefined && (
+                                  <div style={{ textAlign:'center' }}>
+                                    <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.2rem' }}>LAUNCH ANGLE</div>
+                                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.8rem', color: p.launchAngle >= 10 && p.launchAngle <= 30 ? '#2ed47a' : '#f0f2f8', lineHeight:1 }}>
+                                      {p.launchAngle > 0 ? '+' : ''}{p.launchAngle.toFixed(1)}<span style={{ fontSize:'.75rem', color:'#5c6070' }}>°</span>
+                                    </div>
+                                  </div>
+                                )}
+                                {p.exitVelo && p.launchAngle !== null && (
+                                  <div style={{ textAlign:'center' }}>
+                                    <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.2rem' }}>BATTED BALL</div>
+                                    <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.88rem', fontWeight:700, color:'#f5a623', lineHeight:1.2 }}>
+                                      {p.launchAngle < -10 ? 'Ground Ball' : p.launchAngle < 10 ? 'Line Drive' : p.launchAngle < 25 ? 'Line Drive' : p.launchAngle < 50 ? 'Fly Ball' : 'Pop Up'}
+                                    </div>
+                                    {p.exitVelo >= 95 && p.launchAngle >= 8 && p.launchAngle <= 32 && (
+                                      <div style={{ fontSize:'.65rem', color:'#00c2a8', marginTop:'.15rem' }}>💥 Barrel!</div>
+                                    )}
+                                  </div>
+                                )}
+                                {p.description && (
+                                  <div style={{ width:'100%', fontSize:'.78rem', color:'#b8bdd0', fontStyle:'italic', marginTop:'.25rem', paddingTop:'.5rem', borderTop:'1px solid #1e2028' }}>
+                                    {p.description}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {currentAtBat.description && (
+                  {currentAtBat.description && !currentAtBat.pitches.some(p => p.exitVelo) && (
                     <div style={{ marginTop:'.75rem', fontSize:'.82rem', color:'#b8bdd0', fontStyle:'italic', borderTop:'1px solid #1e2028', paddingTop:'.75rem' }}>
                       {currentAtBat.description}
                     </div>
@@ -629,7 +713,7 @@ export default function GamePage() {
                     </tr>
                   ))}
                   {/* Team totals */}
-                  <tr style={{ borderTop:'1px solid #1e2028', background:'#0a0b0f' }}>
+                  <tr style={{ borderTop:'1px solid #1e2028', background:'#080c12' }}>
                     <td style={{ ...s.bsTd, textAlign:'left', fontWeight:700, color:'#f0f2f8' }}>TOTALS</td>
                     {['atBats','runs','hits','rbi','baseOnBalls','strikeOuts'].map(k => (
                       <td key={k} style={{ ...s.bsTd, fontWeight:700, color:'#f0f2f8' }}>
@@ -686,14 +770,14 @@ export default function GamePage() {
       </div>
 
       <footer style={s.footer}>
-        Live data via <a href="https://statsapi.mlb.com" style={{ color:'#5c6070' }}>MLB Stats API</a> · CoachValerio.com
+        Live data via <a href="https://statsapi.mlb.com" style={{ color:'#5c6070' }}>MLB Stats API</a> · Coach.com
       </footer>
     </>
   );
 }
 
 const s = {
-  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:           { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:          { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:      { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:       { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
@@ -701,7 +785,7 @@ const s = {
   breadcrumb:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',marginBottom:'.75rem' },
   liveBadge:     { display:'inline-flex',alignItems:'center',gap:'.4rem',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',color:'#2ed47a',background:'rgba(46,212,122,.1)',border:'1px solid rgba(46,212,122,.3)',borderRadius:'4px',padding:'.2rem .6rem' },
   finalBadge:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',color:'#f0f2f8',background:'#1e2028',borderRadius:'4px',padding:'.2rem .6rem' },
-  previewBadge:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',color:'#5c6070',background:'#0a0b0f',border:'1px solid #1e2028',borderRadius:'4px',padding:'.2rem .6rem' },
+  previewBadge:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',color:'#5c6070',background:'#080c12',border:'1px solid #1e2028',borderRadius:'4px',padding:'.2rem .6rem' },
   inningBadge:   { fontFamily:"'Bebas Neue',sans-serif",fontSize:'.9rem',color:'#00c2a8',background:'rgba(0,194,168,.1)',border:'1px solid rgba(0,194,168,.3)',borderRadius:'4px',padding:'.15rem .6rem' },
   venueBadge:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',color:'#3a3f52',letterSpacing:'.08em' },
   scoreRow:      { display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',marginBottom:'1rem' },
@@ -713,24 +797,24 @@ const s = {
   scoreDivider:  { textAlign:'center',flexShrink:0 },
   scoreDash:     { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'1.5rem',color:'#3a3f52' },
   countDisplay:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,marginTop:'.2rem' },
-  linescoreWrap: { background:'#0a0b0f',borderTop:'1px solid #1e2028',padding:'.75rem 0' },
+  linescoreWrap: { background:'#080c12',borderTop:'1px solid #1e2028',padding:'.75rem 0' },
   lsTh:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.1em',color:'#3a3f52',padding:'.4rem .6rem',textAlign:'center' },
   lsTd:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',padding:'.4rem .6rem',textAlign:'center',color:'#b8bdd0' },
-  tabBar:        { borderBottom:'1px solid #1e2028',background:'#0a0b0f',position:'sticky',top:'54px',zIndex:100 },
+  tabBar:        { borderBottom:'1px solid #1e2028',background:'#080c12',position:'sticky',top:'54px',zIndex:100 },
   tabInner:      { maxWidth:'960px',margin:'0 auto',display:'flex',overflowX:'auto',padding:'0 1.5rem' },
   tabBtn:        { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.8rem',fontWeight:700,letterSpacing:'.1em',padding:'.85rem 1.25rem',background:'none',border:'none',borderBottom:'2px solid transparent',color:'#5c6070',cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s' },
   body:          { maxWidth:'960px',margin:'0 auto',padding:'1.5rem' },
   liveGrid:      { display:'grid',gridTemplateColumns:'minmax(0,1fr) 320px',gap:'1.5rem' },
   secLabel:      { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',color:'#00c2a8',marginBottom:'1rem',paddingBottom:'.5rem',borderBottom:'1px solid #1e2028' },
-  atBatCard:     { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.25rem' },
-  previewCard:   { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'2rem',textAlign:'center',marginBottom:'1rem' },
+  atBatCard:     { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.25rem' },
+  previewCard:   { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',padding:'2rem',textAlign:'center',marginBottom:'1rem' },
   atBatAvatar:   { width:'44px',height:'44px',borderRadius:'50%',objectFit:'cover',background:'#1e2028',flexShrink:0 },
-  countRow:      { display:'flex',justifyContent:'space-around',background:'#0a0b0f',borderRadius:'8px',padding:'.75rem 1rem' },
-  scoringPlay:   { background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'.85rem 1rem' },
+  countRow:      { display:'flex',justifyContent:'space-around',background:'#080c12',borderRadius:'8px',padding:'.75rem 1rem' },
+  scoringPlay:   { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.85rem 1rem' },
   playRow:       { display:'flex',gap:'.75rem',alignItems:'flex-start',padding:'.65rem .75rem',borderRadius:'6px',transition:'background .1s' },
   playInning:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,minWidth:'28px',flexShrink:0,marginTop:'.1rem' },
-  tableWrap:     { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'auto',marginBottom:'1rem' },
-  bsTh:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.1em',color:'#5c6070',padding:'.55rem .75rem',textAlign:'center',background:'#0a0b0f',whiteSpace:'nowrap' },
+  tableWrap:     { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'auto',marginBottom:'1rem' },
+  bsTh:          { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.1em',color:'#5c6070',padding:'.55rem .75rem',textAlign:'center',background:'#080c12',whiteSpace:'nowrap' },
   bsTd:          { padding:'.55rem .75rem',textAlign:'center',fontSize:'.82rem',color:'#b8bdd0',whiteSpace:'nowrap' },
   subBtn:        { padding:'.4rem .9rem',background:'transparent',border:'1px solid #1e2028',borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,letterSpacing:'.08em',color:'#5c6070',cursor:'pointer',display:'flex',alignItems:'center' },
   footer:        { borderTop:'1px solid #1e2028',padding:'1.4rem',textAlign:'center',fontSize:'.74rem',color:'#5c6070',marginTop:'3rem' },

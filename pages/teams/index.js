@@ -72,17 +72,17 @@ export default function TeamsIndex() {
   return (
     <>
       <Head>
-        <title>Teams — CoachValerio</title>
+        <title>Teams — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           .team-card:hover{transform:translateY(-3px);border-color:#2a2f3f!important;transition:all .2s}
         `}</style>
       </Head>
 
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -140,18 +140,18 @@ export default function TeamsIndex() {
       </div>
 
       <footer style={s.footer}>
-        Data via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> · CoachValerio.com
+        Data via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> · Coach.com
       </footer>
     </>
   );
 }
 
 const s = {
-  nav:         { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:         { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:        { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:    { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:     { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
-  header:      { background:'#0a0b0f',borderBottom:'1px solid #1e2028',padding:'1.5rem' },
+  header:      { background:'#080c12',borderBottom:'1px solid #1e2028',padding:'1.5rem' },
   headerInner: { maxWidth:'1200px',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'1rem' },
   pageLabel:   { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.25em',color:'#00c2a8' },
   pageTitle:   { fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',letterSpacing:'.05em',color:'#f0f2f8' },
@@ -162,7 +162,7 @@ const s = {
   divSection:  { marginBottom:'2.5rem' },
   divLabel:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',color:'#00c2a8',marginBottom:'1rem',paddingBottom:'.5rem',borderBottom:'1px solid #1e2028' },
   teamGrid:    { display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'.75rem' },
-  teamCard:    { display:'flex',alignItems:'center',gap:'.85rem',background:'#111318',border:'1px solid',borderRadius:'10px',padding:'.85rem 1rem',cursor:'pointer',transition:'all .2s' },
+  teamCard:    { display:'flex',alignItems:'center',gap:'.85rem',background:'#0d1117',border:'1px solid',borderRadius:'10px',padding:'.85rem 1rem',cursor:'pointer',transition:'all .2s' },
   logoWrap:    { width:'48px',height:'48px',borderRadius:'8px',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 },
   teamLogo:    { width:'36px',height:'36px',objectFit:'contain' },
   teamInfo:    { flex:1,minWidth:0 },

@@ -60,6 +60,7 @@ export default function Scoreboard() {
   const [loading, setLoading] = useState(true);
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
   const [filter, setFilter]   = useState('all'); // all | live | upcoming | final
+  const [oddsMap, setOddsMap] = useState({});
 
   useEffect(() => {
     setLoading(true);
@@ -67,6 +68,19 @@ export default function Scoreboard() {
       .then(r => r.json())
       .then(d => { setGames(d.games ?? []); setLoading(false); })
       .catch(() => setLoading(false));
+  }, [date]);
+
+  // Fetch game-level odds (moneyline/runline/total) for today only
+  useEffect(() => {
+    if (date !== new Date().toISOString().slice(0, 10)) return;
+    fetch('/api/odds-board')
+      .then(r => r.json())
+      .then(d => {
+        const map = {};
+        (d.games ?? []).forEach(g => { map[g.gamePk] = g; });
+        setOddsMap(map);
+      })
+      .catch(() => {});
   }, [date]);
 
   const displayed = games.filter(g => {
@@ -83,18 +97,18 @@ export default function Scoreboard() {
   return (
     <>
       <Head>
-        <title>Scoreboard — CoachValerio</title>
+        <title>Scoreboard — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           .game-card:hover{border-color:#2a2f3f!important;transform:translateY(-1px);transition:all .2s}
         `}</style>
       </Head>
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={{ ...s.navLink, color: '#00c2a8' }}>Scoreboard</a>
@@ -140,6 +154,7 @@ export default function Scoreboard() {
             const awayColor = tc(game.away.name);
             const homeLead  = game.home.score > game.away.score;
             const awayLead  = game.away.score > game.home.score;
+            const gameOdds  = oddsMap[game.gamePk];
 
             return (
               <div key={game.gamePk} className="game-card" style={{ ...s.card, cursor:'pointer' }}
@@ -219,6 +234,64 @@ export default function Scoreboard() {
                   </div>
                 )}
 
+                {/* ── Live Odds Strip ── */}
+                {gameOdds?.hasOdds && (
+                  <div style={{ borderTop:'1px solid #1e2028', display:'flex', alignItems:'stretch' }}>
+                    {/* Moneyline */}
+                    <div style={{ flex:1, padding:'.5rem .75rem', borderRight:'1px solid #1e2028', textAlign:'center' }}>
+                      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.55rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.25rem' }}>MONEYLINE</div>
+                      <div style={{ display:'flex', justifyContent:'space-around' }}>
+                        <div>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', color: awayColor }}>{game.away.abbr}</div>
+                          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.05rem', color: gameOdds.awayTier?.rank >= 3 ? '#2ed47a' : '#f0f2f8', lineHeight:1 }}>
+                            {gameOdds.odds?.moneyline?.away?.price > 0 ? '+' : ''}{gameOdds.odds?.moneyline?.away?.price ?? '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', color: homeColor }}>{game.home.abbr}</div>
+                          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.05rem', color: gameOdds.homeTier?.rank >= 3 ? '#2ed47a' : '#f0f2f8', lineHeight:1 }}>
+                            {gameOdds.odds?.moneyline?.home?.price > 0 ? '+' : ''}{gameOdds.odds?.moneyline?.home?.price ?? '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Run Line */}
+                    <div style={{ flex:1, padding:'.5rem .75rem', borderRight:'1px solid #1e2028', textAlign:'center' }}>
+                      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.55rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.25rem' }}>RUN LINE</div>
+                      <div style={{ display:'flex', justifyContent:'space-around' }}>
+                        {['away','home'].map(side => (
+                          <div key={side}>
+                            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070' }}>
+                              {gameOdds.odds?.runline?.[side]?.point > 0 ? '+' : ''}{gameOdds.odds?.runline?.[side]?.point}
+                            </div>
+                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.05rem', color:'#f0f2f8', lineHeight:1 }}>
+                              {gameOdds.odds?.runline?.[side]?.price > 0 ? '+' : ''}{gameOdds.odds?.runline?.[side]?.price ?? '—'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Total */}
+                    <div style={{ flex:1, padding:'.5rem .75rem', textAlign:'center' }}>
+                      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.55rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginBottom:'.25rem' }}>O/U {gameOdds.odds?.total?.line}</div>
+                      <div style={{ display:'flex', justifyContent:'space-around' }}>
+                        <div>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070' }}>Over</div>
+                          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.05rem', color:'#f0f2f8', lineHeight:1 }}>
+                            {gameOdds.odds?.total?.over?.price > 0 ? '+' : ''}{gameOdds.odds?.total?.over?.price ?? '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070' }}>Under</div>
+                          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.05rem', color:'#f0f2f8', lineHeight:1 }}>
+                            {gameOdds.odds?.total?.under?.price > 0 ? '+' : ''}{gameOdds.odds?.total?.under?.price ?? '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Weather + HR Boost */}
                 <div style={s.weatherSection}>
                   {game.weather?.temp ? (
@@ -276,30 +349,30 @@ export default function Scoreboard() {
       <footer style={s.footer}>
         Weather via <a href="https://openweathermap.org" style={{ color: '#5c6070' }}>OpenWeatherMap</a> ·
         Scores via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> ·
-        CoachValerio.com
+        Coach.com
       </footer>
     </>
   );
 }
 
 const s = {
-  nav:          { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:          { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:         { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:     { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:      { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
-  header:       { background:'#0a0b0f',borderBottom:'1px solid #1e2028',padding:'1.5rem 1.5rem .75rem' },
+  header:       { background:'#080c12',borderBottom:'1px solid #1e2028',padding:'1.5rem 1.5rem .75rem' },
   headerInner:  { maxWidth:'1200px',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'1rem',marginBottom:'1rem' },
   pageLabel:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.25em',color:'#00c2a8' },
   pageTitle:    { fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',letterSpacing:'.05em',color:'#f0f2f8' },
   controls:     { display:'flex',gap:'.75rem',alignItems:'center' },
-  dateInput:    { background:'#111318',border:'1px solid #1e2028',borderRadius:'6px',color:'#f0f2f8',padding:'.45rem .75rem',fontFamily:"'Barlow',sans-serif",fontSize:'.85rem',cursor:'pointer' },
+  dateInput:    { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'6px',color:'#f0f2f8',padding:'.45rem .75rem',fontFamily:"'Barlow',sans-serif",fontSize:'.85rem',cursor:'pointer' },
   filterRow:    { maxWidth:'1200px',margin:'0 auto',display:'flex',gap:'.5rem',flexWrap:'wrap' },
   fBtn:         { padding:'.3rem .85rem',background:'transparent',border:'1px solid #1e2028',borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070',cursor:'pointer' },
   fBtnActive:   { borderColor:'#00c2a8',color:'#00c2a8',background:'rgba(0,194,168,.08)' },
   body:         { maxWidth:'1200px',margin:'0 auto',padding:'1.5rem' },
   loading:      { textAlign:'center',color:'#5c6070',padding:'3rem',fontSize:'.9rem' },
   grid:         { display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:'1rem',marginBottom:'2rem' },
-  card:         { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden',transition:'all .2s' },
+  card:         { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'hidden',transition:'all .2s' },
   statusBar:    { display:'flex',alignItems:'center',justifyContent:'space-between',padding:'.5rem .85rem' },
   statusBadge:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em' },
   venue:        { fontSize:'.7rem',color:'#3a3f52',maxWidth:'55%',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' },
@@ -324,7 +397,7 @@ const s = {
   weatherIcon:  { fontSize:'.9rem' },
   weatherText:  { fontSize:'.75rem',color:'#5c6070',flex:1 },
   hrBoostBadge: { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.08em',border:'1px solid',borderRadius:'4px',padding:'.15rem .4rem',whiteSpace:'nowrap' },
-  legend:       { background:'#0a0b0f',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem 1.25rem',marginTop:'1rem' },
+  legend:       { background:'#080c12',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem 1.25rem',marginTop:'1rem' },
   legendTitle:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.2em',color:'#5c6070',marginBottom:'.65rem' },
   legendRow:    { display:'flex',flexDirection:'column',gap:'.35rem' },
   legendItem:   { display:'flex',alignItems:'center',flexWrap:'wrap',gap:'.25rem' },

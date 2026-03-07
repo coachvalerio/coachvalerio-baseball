@@ -148,11 +148,11 @@ export default function TeamPage() {
   return (
     <>
       <Head>
-        <title>{team.name} — CoachValerio</title>
+        <title>{team.name} — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           table{border-collapse:collapse;width:100%}
           .roster-row:hover{background:rgba(255,255,255,.03)!important;cursor:pointer}
           .tab-btn:hover{color:#f0f2f8!important}
@@ -161,7 +161,7 @@ export default function TeamPage() {
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -533,7 +533,7 @@ export default function TeamPage() {
       </div>
 
       <footer style={s.footer}>
-        Data via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> · CoachValerio.com
+        Data via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> · Coach.com
       </footer>
     </>
   );
@@ -550,7 +550,7 @@ function txColor(type) {
 }
 
 const s = {
-  nav:            { position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
+  nav:            { position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem' },
   logo:           { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0 },
   navLinks:       { display:'flex',gap:'1.5rem',marginLeft:'auto' },
   navLink:        { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',textDecoration:'none' },
@@ -567,7 +567,7 @@ const s = {
   recordBig:      { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.05em',lineHeight:1 },
   recordSub:      { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginTop:'.1rem' },
   recordDivider:  { width:'1px',height:'40px',background:'#1e2028',margin:'0 .25rem' },
-  tabBar:         { borderBottom:'1px solid #1e2028',background:'#0a0b0f',position:'sticky',top:'54px',zIndex:100 },
+  tabBar:         { borderBottom:'1px solid #1e2028',background:'#080c12',position:'sticky',top:'54px',zIndex:100 },
   tabInner:       { maxWidth:'1200px',margin:'0 auto',display:'flex',overflowX:'auto',padding:'0 1.5rem' },
   tabBtn:         { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.8rem',fontWeight:700,letterSpacing:'.1em',padding:'.85rem 1.25rem',background:'none',border:'none',borderBottom:'2px solid transparent',color:'#5c6070',cursor:'pointer',whiteSpace:'nowrap',transition:'color .15s' },
   tabActive:      { borderBottomWidth:'2px',borderBottomStyle:'solid' },
@@ -576,17 +576,17 @@ const s = {
   subTabs:        { display:'flex',gap:'.5rem',marginBottom:'1.25rem',flexWrap:'wrap' },
   subBtn:         { padding:'.35rem .85rem',background:'transparent',border:'1px solid #1e2028',borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070',cursor:'pointer' },
   subBtnActive:   { background:'rgba(0,194,168,.05)' },
-  tableWrap:      { background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',overflow:'auto' },
-  th:             { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,letterSpacing:'.13em',color:'#5c6070',padding:'.6rem .85rem',textAlign:'center',whiteSpace:'nowrap',background:'#0a0b0f' },
+  tableWrap:      { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',overflow:'auto' },
+  th:             { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,letterSpacing:'.13em',color:'#5c6070',padding:'.6rem .85rem',textAlign:'center',whiteSpace:'nowrap',background:'#080c12' },
   td:             { padding:'.6rem .85rem',textAlign:'center',fontSize:'.84rem',color:'#b8bdd0',whiteSpace:'nowrap' },
   avatar:         { width:'28px',height:'28px',borderRadius:'50%',objectFit:'cover',background:'#1e2028',flexShrink:0 },
   statGrid:       { display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:'.75rem' },
-  statBox:        { background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'.85rem 1rem',textAlign:'center' },
+  statBox:        { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.85rem 1rem',textAlign:'center' },
   statVal:        { fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',letterSpacing:'.04em',lineHeight:1 },
   statLabel:      { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,letterSpacing:'.15em',color:'#5c6070',marginTop:'.2rem' },
   statSub:        { fontSize:'.68rem',color:'#3a3f52',marginTop:'.1rem' },
   splitsGrid:     { display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:'1rem' },
-  splitsCard:     { background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem 1.25rem' },
+  splitsCard:     { background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem 1.25rem' },
   splitsCardTitle:{ fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.2em',color:'#3a3f52',marginBottom:'.85rem' },
   splitRow:       { display:'flex',alignItems:'center',gap:'.6rem',marginBottom:'.55rem' },
   splitLabel:     { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.08em',color:'#b8bdd0',minWidth:'60px' },
@@ -594,7 +594,7 @@ const s = {
   splitRecord:    { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,minWidth:'42px',textAlign:'right' },
   splitPct:       { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',color:'#5c6070',minWidth:'36px',textAlign:'right' },
   txList:         { display:'flex',flexDirection:'column',gap:'.5rem' },
-  txRow:          { display:'flex',alignItems:'flex-start',gap:'.75rem',padding:'.75rem 1rem',background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',flexWrap:'wrap' },
+  txRow:          { display:'flex',alignItems:'flex-start',gap:'.75rem',padding:'.75rem 1rem',background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',flexWrap:'wrap' },
   txType:         { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.08em',border:'1px solid',borderRadius:'4px',padding:'.15rem .45rem',whiteSpace:'nowrap',flexShrink:0 },
   txDate:         { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',color:'#3a3f52',flexShrink:0 },
   footer:         { borderTop:'1px solid #1e2028',padding:'1.4rem',textAlign:'center',fontSize:'.74rem',color:'#5c6070',marginTop:'3rem' },

@@ -189,7 +189,7 @@ export default function PlayerPage() {
   return (
     <>
       <Head>
-        <title>{player.fullName} — CoachValerio</title>
+        <title>{player.fullName} — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" />
         <style>{`
@@ -205,7 +205,7 @@ export default function PlayerPage() {
       </Head>
 
       <nav style={{...s.nav, borderBottomColor: colors.primary+'55'}}>
-        <a href="/" style={s.navLogo}>Coach<span style={{color:colors.primary}}>Valerio</span></a>
+        <a href="/" style={s.navLogo}>COACH<span style={{color:colors.primary}}>.</span></a>
         <SearchBar colors={colors} />
       </nav>
 
@@ -354,7 +354,7 @@ export default function PlayerPage() {
       </main>
       <footer style={s.footer}>
         Data via <a href="https://statsapi.mlb.com" target="_blank" rel="noopener" style={{color:'#5c6070'}}>MLB Stats API</a> &amp;&nbsp;
-        <a href="https://baseballsavant.mlb.com" target="_blank" rel="noopener" style={{color:'#5c6070'}}>Baseball Savant</a> · CoachValerio.com
+        <a href="https://baseballsavant.mlb.com" target="_blank" rel="noopener" style={{color:'#5c6070'}}>Baseball Savant</a> · Coach.com
       </footer>
     </>
   );
@@ -465,7 +465,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
       <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',marginBottom:'1rem'}}>
         {metrics.map(m=>(
           <button key={m.key} className="trend-btn"
-            style={{padding:'.3rem .8rem',background:'#111318',border:`1px solid ${activeTrendMetric===m.key?colors.primary:'#1e2028'}`,borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:activeTrendMetric===m.key?colors.primary:'#5c6070',cursor:'pointer',transition:'all .2s'}}
+            style={{padding:'.3rem .8rem',background:'#0d1117',border:`1px solid ${activeTrendMetric===m.key?colors.primary:'#1e2028'}`,borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:activeTrendMetric===m.key?colors.primary:'#5c6070',cursor:'pointer',transition:'all .2s'}}
             onClick={()=>setTrendMetric(m.key)}>
             {m.label}
           </button>
@@ -500,7 +500,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
           const lb = ['era','whip','baseOnBallsPer9Inn'].includes(m.key);
           const up = lb ? cur<prev : cur>prev;
           return (
-            <div key={m.key} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'.9rem .85rem',textAlign:'center'}}>
+            <div key={m.key} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.9rem .85rem',textAlign:'center'}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.25rem'}}>{m.label}</div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',color:'#f0f2f8',lineHeight:1}}>{cur||'—'}</div>
               <div style={{fontSize:'.68rem',color:up?colors.primary:'#e63535',marginTop:'.2rem'}}>{up?'▲':'▼'} vs prev yr</div>
@@ -533,7 +533,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
                 const p = best?.price ?? null;
                 const implied = p ? (p > 0 ? Math.round(100/(p+100)*100) : Math.round(Math.abs(p)/(Math.abs(p)+100)*100)) : null;
                 return (
-                  <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
+                  <div key={i} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.35rem'}}>{prop.label}</div>
                     <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',color:colors.primary,lineHeight:1}}>{p?(p>0?'+':'')+p:'—'}</div>
                     {implied && <div style={{fontSize:'.65rem',color:'#5c6070',marginTop:'.2rem'}}>{implied}% implied</div>}
@@ -543,7 +543,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
               })}
             </div>
           ) : (
-            <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+            <div style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem',marginBottom:'1.5rem'}}>
               <div style={{fontSize:'.82rem',color:'#5c6070',textAlign:'center',marginBottom: odds?.hasApiKey ? '.5rem' : 0}}>
                 {odds?.hasApiKey
                   ? (odds?.noGame
@@ -567,7 +567,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
 // ── Best Bet Panel ────────────────────────────────────────────────────────
 function BestBetPanel({ odds, colors, isPitcher }) {
   if (!odds) return (
-    <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',textAlign:'center',color:'#3a3f52',fontSize:'.85rem',marginBottom:'1.5rem'}}>
+    <div style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',textAlign:'center',color:'#3a3f52',fontSize:'.85rem',marginBottom:'1.5rem'}}>
       Analyzing matchup…
     </div>
   );
@@ -576,16 +576,16 @@ function BestBetPanel({ odds, colors, isPitcher }) {
   const gradeColor = bestBet?.color ?? '#3a3f52';
 
   if (!hasGame || noGame) return (
-    <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',marginBottom:'1.5rem'}}>
+    <div style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',marginBottom:'1.5rem'}}>
       <div style={{fontSize:'.85rem',color:'#5c6070',textAlign:'center'}}>No game scheduled today — check back on game days.</div>
     </div>
   );
 
   return (
-    <div style={{background:'#111318',border:`1px solid ${gradeColor}44`,borderRadius:'10px',overflow:'hidden',marginBottom:'1.5rem'}}>
+    <div style={{background:'#0d1117',border:`1px solid ${gradeColor}44`,borderRadius:'10px',overflow:'hidden',marginBottom:'1.5rem'}}>
       {/* Game context bar */}
       {gameInfo && (
-        <div style={{display:'flex',alignItems:'center',gap:'1rem',padding:'.6rem 1rem',background:'#0a0b0f',borderBottom:'1px solid #1e2028',flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'1rem',padding:'.6rem 1rem',background:'#080c12',borderBottom:'1px solid #1e2028',flexWrap:'wrap'}}>
           {gameInfo.opponentId && <img src={`https://www.mlbstatic.com/team-logos/${gameInfo.opponentId}.svg`} alt="" style={{width:'22px',height:'22px',objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>}
           <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',color:'#f0f2f8'}}>vs {gameInfo.opponentAbbr ?? gameInfo.opponent}</span>
           {gameInfo.probablePitcher && <span style={{fontSize:'.72rem',color:'#5c6070'}}>⚾ {gameInfo.probablePitcher}</span>}
@@ -943,7 +943,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
         </div>
         <div style={{display:'flex', gap:'.5rem', alignItems:'center'}}>
           {/* Park factor badge */}
-          <div style={{textAlign:'center',background:'#0a0b0f',border:'1px solid #1e2028',borderRadius:'6px',padding:'.4rem .7rem'}}>
+          <div style={{textAlign:'center',background:'#080c12',border:'1px solid #1e2028',borderRadius:'6px',padding:'.4rem .7rem'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',color: gameInfo.parkFactor >= 1.05 ? '#2ed47a' : gameInfo.parkFactor <= 0.95 ? '#e63535' : '#b8bdd0'}}>
               {gameInfo.parkFactor?.toFixed(2) ?? '—'}
             </div>
@@ -956,7 +956,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
       {!pitcher ? (
         <div style={{fontSize:'.82rem',color:'#5c6070',fontStyle:'italic'}}>Probable pitcher not yet announced</div>
       ) : (
-        <div style={{display:'flex',alignItems:'center',gap:'1rem',background:'#0a0b0f',borderRadius:'8px',padding:'.85rem 1rem',flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'1rem',background:'#080c12',borderRadius:'8px',padding:'.85rem 1rem',flexWrap:'wrap'}}>
           <img
             src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${pitcher.id}/headshot/67/current`}
             alt={pitcher.name}
@@ -1112,7 +1112,7 @@ function HighlightsTab({ id, player, highlights, colors }) {
       {/* Always show MLB.com link */}
       <a href={`https://www.mlb.com/player/${player.fullName.toLowerCase().replace(/ /g,'-')}-${id}/videos`}
         target="_blank" rel="noopener"
-        style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'1rem 1.25rem',background:'#111318',border:`1px solid ${colors.primary}55`,borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginTop:'1.5rem'}}>
+        style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'1rem 1.25rem',background:'#0d1117',border:`1px solid ${colors.primary}55`,borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginTop:'1.5rem'}}>
         <span style={{fontSize:'1.4rem'}}>⚾</span>
         <div>
           <div style={{fontWeight:600,color:'#f0f2f8'}}>View All Highlights on MLB.com →</div>
@@ -1127,7 +1127,7 @@ const hts = {
   secLabel: {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',textTransform:'uppercase',marginBottom:'1rem',paddingBottom:'.45rem',borderBottom:'1px solid #1e2028'},
   subLabel: {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.18em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.85rem'},
   videoGrid:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'1rem',marginBottom:'1.5rem'},
-  videoCard:{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',cursor:'pointer',transition:'border-color .2s,transform .15s'},
+  videoCard:{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',cursor:'pointer',transition:'border-color .2s,transform .15s'},
   thumbWrap:{position:'relative',aspectRatio:'16/9',background:'#1e2028',overflow:'hidden'},
   thumb:    {width:'100%',height:'100%',objectFit:'cover',display:'block'},
   playBtn:  {position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2rem',color:'#fff',background:'rgba(0,0,0,.35)',opacity:0,transition:'opacity .2s'},
@@ -1135,7 +1135,7 @@ const hts = {
   videoTitle:{padding:'.6rem .75rem .2rem',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600,fontSize:'.82rem',color:'#f0f2f8',lineHeight:1.3},
   videoDate: {padding:'0 .75rem .6rem',fontSize:'.68rem',color:'#5c6070'},
   modal:    {position:'fixed',inset:0,background:'rgba(0,0,0,.88)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'},
-  modalInner:{background:'#111318',border:'1px solid #1e2028',borderRadius:'12px',padding:'1.25rem',maxWidth:'760px',width:'100%'},
+  modalInner:{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'12px',padding:'1.25rem',maxWidth:'760px',width:'100%'},
 };
 
 // ════════════════════════════════════════════════════════
@@ -1152,7 +1152,7 @@ function DeepStatsTab({ isPitcher, player, colors, hrLog, splits, stat, id }) {
       <div style={{display:'flex',gap:'.5rem',marginBottom:'1.5rem',flexWrap:'wrap'}}>
         {DEEP_TABS.map(t=>(
           <button key={t.id}
-            style={{padding:'.35rem .9rem',background:'#111318',border:`1px solid ${activeDeep===t.id?colors.primary:'#1e2028'}`,borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:activeDeep===t.id?colors.primary:'#5c6070',cursor:'pointer',transition:'all .2s'}}
+            style={{padding:'.35rem .9rem',background:'#0d1117',border:`1px solid ${activeDeep===t.id?colors.primary:'#1e2028'}`,borderRadius:'4px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:activeDeep===t.id?colors.primary:'#5c6070',cursor:'pointer',transition:'all .2s'}}
             onClick={()=>setActiveDeep(t.id)}>{t.label}
           </button>
         ))}
@@ -1200,7 +1200,7 @@ function HRLog({ hrLog, colors, player }) {
           {/* Summary cards */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'.75rem',marginBottom:'1.5rem'}}>
             {getHRSummary(hrs, colors).map((c,i)=>(
-              <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
+              <div key={i} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.6rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.3rem'}}>{c.label}</div>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',color:c.color??colors.primary}}>{c.val}</div>
                 {c.sub && <div style={{fontSize:'.68rem',color:'#5c6070',marginTop:'.1rem'}}>{c.sub}</div>}
@@ -1626,7 +1626,7 @@ function SocialTab({ player, colors }) {
 
       {/* Embedded X timeline widget — no API key needed */}
       <div style={{...s.secLabel,color:colors.primary}}>Embedded X Search Timeline</div>
-      <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',padding:'1rem',marginBottom:'1.5rem'}}>
+      <div style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',padding:'1rem',marginBottom:'1.5rem'}}>
         <a className="twitter-timeline"
           data-theme="dark"
           data-height="600"
@@ -1779,7 +1779,7 @@ function LinksGrid({ player, id, colors }) {
 function LoadingScreen() {
   return (
     <div style={{position:'fixed',inset:0,background:'#050608',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif"}}>
-      <div style={{fontSize:'2.8rem',letterSpacing:'.1em',color:'#f0f2f8'}}>Coach<span style={{color:'#00c2a8'}}>Valerio</span></div>
+      <div style={{fontSize:'2.8rem',letterSpacing:'.1em',color:'#f0f2f8'}}>COACH<span style={{color:'#00c2a8'}}>.</span></div>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',letterSpacing:'.22em',textTransform:'uppercase',color:'#5c6070',marginTop:'.4rem',marginBottom:'.9rem'}}>Loading Player Data</div>
       <div style={{width:'180px',height:'2px',background:'#1e2028',borderRadius:'2px',overflow:'hidden'}}>
         <div style={{height:'100%',background:'#00c2a8',animation:'loadbar 1.4s ease forwards',width:'0%'}}/>
@@ -1905,7 +1905,7 @@ function getPitTiles(s, savantData) {
 
 // ─── STYLES ──────────────────────────────────────────────
 const s={
-  nav:         {position:'sticky',top:0,zIndex:200,background:'rgba(5,6,8,.93)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem'},
+  nav:         {position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem'},
   navLogo:     {fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0},
   heroWrap:    {position:'relative',minHeight:'88vh',display:'flex',flexDirection:'column',justifyContent:'flex-end',overflow:'hidden',background:'#050608'},
   heroBgWrap:  {position:'absolute',inset:0,overflow:'hidden'},
@@ -1932,25 +1932,25 @@ const s={
   tabBtn:      {padding:'.82rem 1.35rem',background:'none',border:'none',borderBottom:'3px solid transparent',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.85rem',fontWeight:700,letterSpacing:'.13em',textTransform:'uppercase',color:'#5c6070',cursor:'pointer',whiteSpace:'nowrap'},
   main:        {maxWidth:'1200px',margin:'0 auto',padding:'2rem 1.5rem'},
   secLabel:    {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.22em',textTransform:'uppercase',marginBottom:'1rem',paddingBottom:'.45rem',borderBottom:'1px solid #1e2028'},
-  card:        {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',marginBottom:'2rem'},
+  card:        {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',overflow:'hidden',marginBottom:'2rem'},
   cardHead:    {padding:'.82rem 1.25rem',borderBottom:'1px solid #1e2028',display:'flex',alignItems:'center',justifyContent:'space-between'},
   cardTitle:   {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.88rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#f0f2f8'},
   cardTag:     {fontSize:'.62rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',padding:'.16rem .52rem',borderRadius:'3px'},
   th:          {padding:'.58rem 1rem',textAlign:'right',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.13em',textTransform:'uppercase',color:'#5c6070',whiteSpace:'nowrap'},
   td:          {padding:'.58rem 1rem',textAlign:'right',color:'#b8bdd0',whiteSpace:'nowrap'},
-  svTile:      {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.15rem 1rem .9rem',textAlign:'center',position:'relative'},
+  svTile:      {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.15rem 1rem .9rem',textAlign:'center',position:'relative'},
   svLabel:     {fontSize:'.6rem',letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.35rem'},
   svVal:       {fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.4rem',lineHeight:1,color:'#f0f2f8'},
   svSub:       {fontSize:'.68rem',color:'#5c6070',marginTop:'.18rem'},
   svBar:       {height:'3px',background:'#1e2028',borderRadius:'2px',marginTop:'.55rem',overflow:'hidden'},
   svBarFill:   {height:'100%',borderRadius:'2px',transition:'width 1s ease'},
-  predCard:    {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.5rem',marginBottom:'2rem'},
-  matchupCard: {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem 1.5rem',marginBottom:'1.25rem'},
-  infoBox:     {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem 1.4rem',fontSize:'.82rem',lineHeight:1.7,color:'#5c6070',marginBottom:'2rem'},
-  savantFullLink:{display:'flex',alignItems:'center',gap:'.75rem',padding:'.9rem 1.1rem',background:'#111318',border:'1px solid',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginBottom:'2rem'},
-  extLink:     {display:'flex',alignItems:'center',gap:'.72rem',padding:'.85rem 1rem',background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0'},
+  predCard:    {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.5rem',marginBottom:'2rem'},
+  matchupCard: {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem 1.5rem',marginBottom:'1.25rem'},
+  infoBox:     {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem 1.4rem',fontSize:'.82rem',lineHeight:1.7,color:'#5c6070',marginBottom:'2rem'},
+  savantFullLink:{display:'flex',alignItems:'center',gap:'.75rem',padding:'.9rem 1.1rem',background:'#0d1117',border:'1px solid',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0',marginBottom:'2rem'},
+  extLink:     {display:'flex',alignItems:'center',gap:'.72rem',padding:'.85rem 1rem',background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0'},
   extIcon:     {width:'36px',height:'36px',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.15rem',flexShrink:0,background:'#1e2028'},
-  chartCard:   {background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem',marginBottom:'2rem'},
+  chartCard:   {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem',marginBottom:'2rem'},
   searchInput: {width:'100%',padding:'.4rem .9rem',background:'rgba(255,255,255,.04)',border:'1px solid #1e2028',borderRadius:'5px',color:'#f0f2f8',fontFamily:"'Barlow',sans-serif",fontSize:'.88rem',outline:'none'},
   searchDrop:  {position:'absolute',top:'calc(100% + 6px)',left:0,right:0,background:'#15171d',border:'1px solid #1e2028',borderRadius:'8px',maxHeight:'280px',overflowY:'auto',zIndex:300},
   searchItem:  {display:'flex',alignItems:'center',gap:'.7rem',padding:'.55rem 1rem',cursor:'pointer'},

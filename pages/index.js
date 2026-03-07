@@ -69,11 +69,11 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>CoachValerio — Baseball Stats, Predictions & News</title>
+        <title>Coach — Baseball Stats, Predictions & News</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;color:#b8bdd0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
+          body{background:#03080f;color:#c8cde0;font-family:'Barlow',sans-serif;-webkit-font-smoothing:antialiased}
           .ql-card:hover{border-color:#00c2a8!important;transform:translateY(-2px);transition:all .2s}
           .leader-row:hover{background:rgba(0,194,168,.05)!important}
           .news-card:hover{border-color:#00c2a8!important;transform:translateY(-2px);transition:all .2s}
@@ -84,7 +84,7 @@ export default function Home() {
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -101,8 +101,8 @@ export default function Home() {
       <div style={s.hero}>
         <div style={s.heroBg} />
         <div style={s.heroContent}>
-          <div style={s.siteTitle}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></div>
-          <div style={s.tagline}>FATHERHOOD. SPORTS. UNFILTERED.</div>
+          <div style={s.siteTitle}>COACH<span style={{ color:"#00c2a8" }}>.</span></div>
+          <div style={s.tagline}>DIG DEEP</div>
           <div style={s.heroSub}>MLB Stats · Statcast · Daily Predictions · {SEASON} Season</div>
 
           {/* SEARCH */}
@@ -268,7 +268,7 @@ export default function Home() {
       <footer style={s.footer}>
         Data via <a href="https://statsapi.mlb.com" target="_blank" rel="noopener" style={{ color: '#5c6070' }}>MLB Stats API</a> ·
         <a href="https://baseballsavant.mlb.com" target="_blank" rel="noopener" style={{ color: '#5c6070' }}> Baseball Savant</a> ·
-        CoachValerio.com · Updated daily
+        Coach.com · Updated daily
       </footer>
     </>
   );
@@ -294,12 +294,12 @@ const s = {
   logo:         { fontFamily: "'Bebas Neue',sans-serif", fontSize: '1.5rem', letterSpacing: '.08em', color: '#f0f2f8', textDecoration: 'none', flexShrink: 0 },
   navLinks:     { display: 'flex', gap: '1.5rem', marginLeft: 'auto' },
   navLink:      { fontFamily: "'Barlow Condensed',sans-serif", fontSize: '.82rem', fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: '#5c6070', textDecoration: 'none' },
-  hero:         { position: 'relative', padding: '5rem 1.5rem 3.5rem', textAlign: 'center', overflow: 'hidden', background: 'linear-gradient(135deg, #050608 0%, #0a0f1a 50%, #050608 100%)' },
-  heroBg:       { position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(0,194,168,.08) 0%, transparent 60%)', pointerEvents: 'none' },
+  hero:         { position: 'relative', padding: '5rem 1.5rem 3.5rem', textAlign: 'center', overflow: 'hidden', background: 'linear-gradient(160deg, #03080f 0%, #061223 40%, #040d18 70%, #050608 100%)' },
+  heroBg:       { position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 50% -10%, rgba(0,194,168,.18) 0%, transparent 55%), radial-gradient(ellipse at 20% 100%, rgba(0,80,200,.10) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(245,166,35,.06) 0%, transparent 40%)', pointerEvents: 'none' },
   heroContent:  { position: 'relative', zIndex: 1 },
-  siteTitle:    { fontFamily: "'Bebas Neue',sans-serif", fontSize: 'clamp(3.5rem,10vw,7rem)', letterSpacing: '.06em', color: '#f0f2f8', lineHeight: 1 },
-  tagline:      { fontFamily: "'Barlow Condensed',sans-serif", fontSize: '.78rem', fontWeight: 700, letterSpacing: '.3em', color: '#5c6070', marginTop: '.5rem' },
-  heroSub:      { fontSize: '.9rem', color: '#5c6070', marginTop: '.35rem', marginBottom: '2.5rem' },
+  siteTitle:    { fontFamily: "'Bebas Neue',sans-serif", fontSize: 'clamp(5rem,14vw,10rem)', letterSpacing: '.04em', color: '#f0f2f8', lineHeight: .9, textShadow: '0 0 80px rgba(0,194,168,.25)' },
+  tagline:      { fontFamily: "'Barlow Condensed',sans-serif", fontSize: '.95rem', fontWeight: 700, letterSpacing: '.55em', color: '#00c2a8', marginTop: '.75rem', textTransform: 'uppercase' },
+  heroSub:      { fontSize: '.88rem', color: '#5c6070', marginTop: '.5rem', marginBottom: '2.5rem', letterSpacing: '.05em' },
   searchWrap:   { position: 'relative', width: '100%', maxWidth: '580px', margin: '0 auto' },
   searchIcon:   { position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#5c6070', fontSize: '1.1rem', pointerEvents: 'none', zIndex: 1 },
   searchInput:  { width: '100%', padding: '.9rem 1.25rem .9rem 2.8rem', background: 'rgba(255,255,255,.05)', border: '1px solid #1e2028', borderRadius: '6px', color: '#f0f2f8', fontFamily: "'Barlow',sans-serif", fontSize: '1rem', outline: 'none', transition: 'border-color .2s' },

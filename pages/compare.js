@@ -266,7 +266,7 @@ export default function Compare() {
   return (
     <>
       <Head>
-        <title>Player Comparison — CoachValerio</title>
+        <title>Player Comparison — Coach</title>
         <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <style>{`
           *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -276,7 +276,7 @@ export default function Compare() {
 
       {/* NAV */}
       <nav style={s.nav}>
-        <a href="/" style={s.logo}>Coach<span style={{ color: '#00c2a8' }}>Valerio</span></a>
+        <a href="/" style={s.logo}>COACH<span style={{ color:"#00c2a8" }}>.</span></a>
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
@@ -409,7 +409,7 @@ export default function Compare() {
       <footer style={s.footer}>
         Stats via <a href="https://statsapi.mlb.com" style={{ color: '#5c6070' }}>MLB Stats API</a> ·
         Savant percentiles via <a href="https://baseballsavant.mlb.com" style={{ color: '#5c6070' }}>Baseball Savant</a> ·
-        CoachValerio.com
+        Coach.com
       </footer>
     </>
   );
