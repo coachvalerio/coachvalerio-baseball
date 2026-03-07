@@ -183,7 +183,8 @@ export default function GamePage() {
   const [loading, setLoading]       = useState(true);
   const [tab, setTab]               = useState('live');
   const [bsTab, setBsTab]           = useState('away');
-  const [conditions, setConditions] = useState(null);
+  const [conditions, setConditions]       = useState(null);
+  const [conditionsError, setConditionsError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
 
@@ -207,10 +208,12 @@ export default function GamePage() {
   // Fetch game conditions once on load
   useEffect(() => {
     if (!gamePk) return;
-    fetch(`/api/game-conditions?gamePk=${gamePk}`)
-      .then(r => r.json())
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 9000);
+    fetch(`/api/game-conditions?gamePk=${gamePk}`, { signal: ctrl.signal })
+      .then(r => { clearTimeout(timer); return r.ok ? r.json() : r.json().then(e => Promise.reject(e)); })
       .then(d => setConditions(d))
-      .catch(() => {});
+      .catch(e => { clearTimeout(timer); setConditionsError(e?.error ?? e?.message ?? 'Failed to load conditions'); });
   }, [gamePk]);
 
   // Auto-refresh every 10s when live
@@ -798,6 +801,7 @@ export default function GamePage() {
         {tab === 'conditions' && (
           <GameConditions
             conditions={conditions}
+            conditionsError={conditionsError}
             homeColor={homeColor}
             awayColor={awayColor}
             gameInfo={gameInfo}
@@ -816,7 +820,22 @@ export default function GamePage() {
 // ════════════════════════════════════════════════════════
 // GAME CONDITIONS COMPONENT
 // ════════════════════════════════════════════════════════
-function GameConditions({ conditions, homeColor, awayColor, gameInfo }) {
+function GameConditions({ conditions, conditionsError, homeColor, awayColor, gameInfo }) {
+  if (conditionsError) return (
+    <div style={{ textAlign:'center', padding:'3rem', color:'#5c6070' }}>
+      <div style={{ fontSize:'1.5rem', marginBottom:'.75rem' }}>⚠️</div>
+      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:'.9rem', color:'#f0f2f8', marginBottom:'.4rem' }}>
+        Could not load conditions
+      </div>
+      <div style={{ fontSize:'.78rem', color:'#3a3f52', marginBottom:'1rem', fontFamily:'monospace', background:'#0d1117', padding:'.5rem .85rem', borderRadius:'6px', display:'inline-block' }}>
+        {conditionsError}
+      </div>
+      <div style={{ fontSize:'.75rem', color:'#3a3f52' }}>
+        Check Vercel function logs for details.
+      </div>
+    </div>
+  );
+
   if (!conditions) return (
     <div style={{ textAlign:'center', padding:'3rem', color:'#3a3f52' }}>
       <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>🌤️</div>

@@ -105,6 +105,15 @@ const safeFetch = async (url, opts = {}) => {
 };
 
 export default async function handler(req, res) {
+  try {
+    return await _handler(req, res);
+  } catch (err) {
+    console.error('game-conditions error:', err);
+    return res.status(500).json({ error: err?.message ?? 'Internal error' });
+  }
+}
+
+async function _handler(req, res) {
   const { gamePk } = req.query;
   if (!gamePk) return res.status(400).json({ error: 'Missing gamePk' });
 
