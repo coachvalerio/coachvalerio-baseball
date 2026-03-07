@@ -48,22 +48,18 @@ export default async function handler(req, res) {
   const today = req.query.date ?? new Date().toISOString().slice(0, 10);
 
   try {
-    // 1. Fetch schedule — NO gameType filter so we get ALL types:
-    //    R=Regular Season, S=Spring Training, E=Exhibition, W=WBC/World Classic
-    //    Two parallel fetches: sportId=1 (MLB/Spring Training) + sportId=51 (WBC)
-    //    CRITICAL: gameType must be in fields= or it comes back undefined
-    const baseFields = 'dates,games,gamePk,gameDate,gameType,status,teams,linescore,probablePitcher,venue,sport';
-
+    // 1. Fetch schedule — NO fields= filter (it strips nested data like team names/IDs)
+    //    NO gameType= filter either so we get ALL types in one call:
+    //    R=Regular Season, S=Spring Training, E=Exhibition, W=WBC
+    //    Two fetches: sportId=1 (all MLB incl Spring Training) + sportId=51 (WBC)
     const [mlbRes, wbcRes] = await Promise.all([
       fetch(
         `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}` +
-        `&hydrate=team,linescore,probablePitcher(note)` +
-        `&fields=${baseFields}`
+        `&hydrate=team,linescore,probablePitcher(note)`
       ),
       fetch(
         `https://statsapi.mlb.com/api/v1/schedule?sportId=51&date=${today}` +
-        `&hydrate=team,linescore,probablePitcher(note)` +
-        `&fields=${baseFields}`
+        `&hydrate=team,linescore,probablePitcher(note)`
       ),
     ]);
 
