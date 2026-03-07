@@ -520,7 +520,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
       <BestBetPanel odds={odds} colors={colors} isPitcher={isPitcher} />
 
       {/* ── LIVE PROP LINES ── */}
-      {(odds?.available || odds?.hasApiKey === false) && (
+      {odds && (
         <>
           <div style={{...s.secLabel,color:colors.primary,marginTop:'2rem'}}>
             Player Props
@@ -543,8 +543,19 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
               })}
             </div>
           ) : (
-            <div style={{...s.card,padding:'1rem',fontSize:'.82rem',color:'#3a3f52',textAlign:'center',marginBottom:'1.5rem'}}>
-              {odds?.message ?? 'Add ODDS_API_KEY to .env.local for live prop lines'}
+            <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.25rem',marginBottom:'1.5rem'}}>
+              <div style={{fontSize:'.82rem',color:'#5c6070',textAlign:'center',marginBottom: odds?.hasApiKey ? '.5rem' : 0}}>
+                {odds?.hasApiKey
+                  ? (odds?.noGame
+                    ? `No game found for this player today — props will appear on game days.`
+                    : `Props not yet posted today. Books typically post MLB props between 10–11am ET on game days.`)
+                  : 'Add ODDS_API_KEY to Vercel environment variables to enable live prop lines.'}
+              </div>
+              {odds?.hasApiKey && !odds?.noGame && (
+                <div style={{fontSize:'.72rem',color:'#3a3f52',textAlign:'center'}}>
+                  API key active ✓ — check back closer to game time
+                </div>
+              )}
             </div>
           )}
         </>
