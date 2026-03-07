@@ -88,6 +88,7 @@ export default function Home() {
         <div style={s.navLinks}>
           <a href="/" style={s.navLink}>Home</a>
           <a href="/scoreboard" style={s.navLink}>Scoreboard</a>
+          <a href="/teams" style={s.navLink}>Teams</a>
           <a href="/transactions" style={s.navLink}>Transactions</a>
           <a href="/compare" style={s.navLink}>Compare</a>
           <a href={`/leaders?season=${SEASON}`} style={s.navLink}>Leaders</a>
