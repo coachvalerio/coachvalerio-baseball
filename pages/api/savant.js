@@ -103,26 +103,39 @@ export default async function handler(req, res) {
           }
         } catch {}
 
-        // ── 5. Arm Strength (separate endpoint)
+        // ── 5. Arm Strength (separate endpoint — try multiple URL patterns)
         let armVal = null, armPct = null;
         try {
-          const atxt = await fetch(
-            `https://baseballsavant.mlb.com/leaderboard/arm-strength?type=Fielder&year=${yr}&pos=&team=&min=0&csv=true`,
-            { headers: H }
-          ).then(r => r.ok ? r.text() : '');
-          const ap = find(atxt);
-          if (ap) {
-            armVal = ap.arm_strength ?? ap.pop_time ?? ap.max_throw_speed ?? null;
-            const rawPct = numOrNull(ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank);
-            if (rawPct !== null) {
-              armPct = rawPct;
-            } else if (armVal !== null) {
-              // Arm strength in mph: league avg ~75-78mph, elite 85+
-              const av = parseFloat(armVal);
-              armPct = isNaN(av) ? null
-                : av >= 90 ? 99 : av >= 87 ? 95 : av >= 84 ? 88
-                : av >= 81 ? 78 : av >= 78 ? 65 : av >= 75 ? 50
-                : av >= 72 ? 36 : av >= 69 ? 23 : av >= 66 ? 12 : 5;
+          // Savant has changed this endpoint URL over time — try all known variants
+          const armUrls = [
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?pos=&year=${yr}&team=&min=0&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?type=Fielder&pos=&year=${yr}&team=&min=0&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?year=${yr}&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm_strength?pos=&year=${yr}&team=&min=0&csv=true`,
+          ];
+          let atxt = '';
+          for (const url of armUrls) {
+            const t = await fetch(url, { headers: H }).then(r => r.ok ? r.text() : '').catch(() => '');
+            if (t && !t.trimStart().startsWith('<') && t.includes(',')) { atxt = t; break; }
+          }
+          if (atxt) {
+            const ap = find(atxt);
+            if (ap) {
+              // Try every known column name for arm strength mph value
+              armVal = ap.arm_strength ?? ap.avg_arm_strength ?? ap.max_eff_vel ??
+                       ap.pop_2b_sba ?? ap.exchange_2b_3b_sba ?? ap.arm_value ?? null;
+              const rawPct = numOrNull(
+                ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank ?? ap.arm_strength_percentile
+              );
+              if (rawPct !== null) {
+                armPct = rawPct;
+              } else if (armVal !== null) {
+                const av = parseFloat(armVal);
+                armPct = isNaN(av) ? null
+                  : av >= 90 ? 99 : av >= 87 ? 95 : av >= 84 ? 88
+                  : av >= 81 ? 78 : av >= 78 ? 65 : av >= 75 ? 50
+                  : av >= 72 ? 36 : av >= 69 ? 23 : av >= 66 ? 12 : 5;
+              }
             }
           }
         } catch {}
@@ -155,15 +168,30 @@ export default async function handler(req, res) {
         const pctF = (n) => n != null ? (n > 1 ? n : n * 100).toFixed(1) + '%' : null;
 
         // ── 6. Compute estimated percentiles for metrics Savant doesn't always rank
-        // Sweet Spot% — MLB avg ~33%, elite ~40%+
-        const ssRaw = raw('sweet_spot_percent', 'sweet_spot', 'sweet_spot_pct', 'ss_percent', 'la_sweet_spot_percent');
+        // Sweet Spot% — Savant statcast CSV column: sweet_spot_percent
+        // (same CSV that has hard_hit_percent and brl_pa which ARE working)
+        const ssRaw = raw(
+          'sweet_spot_percent',     // statcast leaderboard primary
+          'la_sweet_spot_percent',  // alternate naming
+          'sweet_spot_pct',
+          'sweet_spot',
+          'ss_percent',
+          'sweetspot_percent',
+        );
         const sweetSpotEstPct = ssRaw != null
           ? ssRaw >= 40 ? 90 : ssRaw >= 37 ? 80 : ssRaw >= 34 ? 65
           : ssRaw >= 31 ? 50 : ssRaw >= 28 ? 35 : 20
           : null;
 
-        // Launch Angle — optimal is 10–18°, MLB avg ~12–14°
-        const laRaw = raw('avg_launch_angle', 'launch_angle_avg', 'la_avg', 'avg_la', 'launch_angle');
+        // Launch Angle — Savant statcast CSV column: launch_angle_avg
+        const laRaw = raw(
+          'launch_angle_avg',       // statcast leaderboard primary (same CSV as brl_pa)
+          'avg_launch_angle',       // alternate
+          'la_avg',
+          'avg_la',
+          'launch_angle',
+          'la',
+        );
         const laDisplay = laRaw != null ? laRaw.toFixed(1) + '\u00b0' : null;
         const laEstPct = laRaw != null
           ? (laRaw >= 10 && laRaw <= 18) ? 85
@@ -210,6 +238,19 @@ export default async function handler(req, res) {
             sprint_pct:        sprintPct,
             oaa_pct:           oaaPct,
             arm_strength_pct:  armPct,
+            // Temporary debug — visit /api/savant?id=547180&debug=1 to see raw columns
+            ...(req.query.debug === '1' ? {
+              _debug: {
+                statcast_keys_with_sweet_launch: Object.keys(vals).filter(k =>
+                  k.includes('sweet') || k.includes('launch') || k.includes('angle') || k.includes('spot') || k.includes('la_')
+                ),
+                all_statcast_keys: Object.keys(vals),
+                ssRaw_value: ssRaw,
+                laRaw_value: laRaw,
+                armVal_value: armVal,
+                armPct_value: armPct,
+              }
+            } : {}),
           });
 
         } else {

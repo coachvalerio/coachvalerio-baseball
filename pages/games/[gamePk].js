@@ -179,10 +179,11 @@ export default function GamePage() {
   const router  = useRouter();
   const { gamePk } = router.query;
 
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState('live');
-  const [bsTab, setBsTab]     = useState('away'); // box score team side
+  const [data, setData]             = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [tab, setTab]               = useState('live');
+  const [bsTab, setBsTab]           = useState('away');
+  const [conditions, setConditions] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
   const intervalRef = useRef(null);
 
@@ -202,6 +203,15 @@ export default function GamePage() {
     if (!router.isReady || !gamePk) return;
     fetchGame();
   }, [router.isReady, gamePk, fetchGame]);
+
+  // Fetch game conditions once on load
+  useEffect(() => {
+    if (!gamePk) return;
+    fetch(`/api/game-conditions?gamePk=${gamePk}`)
+      .then(r => r.json())
+      .then(d => setConditions(d))
+      .catch(() => {});
+  }, [gamePk]);
 
   // Auto-refresh every 10s when live
   useEffect(() => {
@@ -241,9 +251,10 @@ export default function GamePage() {
     : '';
 
   const tabs = [
-    { id:'live',    label:'⚡ Live'       },
-    { id:'plays',   label:'📋 Play-by-Play'},
-    { id:'boxscore',label:'📊 Box Score'  },
+    { id:'live',       label:'⚡ Live'        },
+    { id:'plays',      label:'📋 Play-by-Play' },
+    { id:'boxscore',   label:'📊 Box Score'   },
+    { id:'conditions', label:'🌤️ Conditions'  },
   ];
 
   return (
@@ -783,12 +794,244 @@ export default function GamePage() {
           </div>
         )}
 
+        {/* ── CONDITIONS TAB ── */}
+        {tab === 'conditions' && (
+          <GameConditions
+            conditions={conditions}
+            homeColor={homeColor}
+            awayColor={awayColor}
+            gameInfo={gameInfo}
+          />
+        )}
+
       </div>
 
       <footer style={s.footer}>
         Live data via <a href="https://statsapi.mlb.com" style={{ color:'#5c6070' }}>MLB Stats API</a> · Coach.com
       </footer>
     </>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// GAME CONDITIONS COMPONENT
+// ════════════════════════════════════════════════════════
+function GameConditions({ conditions, homeColor, awayColor, gameInfo }) {
+  if (!conditions) return (
+    <div style={{ textAlign:'center', padding:'3rem', color:'#3a3f52' }}>
+      <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>🌤️</div>
+      <div>Loading conditions…</div>
+    </div>
+  );
+
+  const { weather, stadium, parkFactors, weatherAnalysis, combinedAnalysis, pitchers, h2h, hasWeatherKey } = conditions;
+  const pred = combinedAnalysis?.prediction;
+
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)', gap:'1.25rem' }}>
+
+      {/* ── CURRENT CONDITIONS ── */}
+      <div style={{ gridColumn:'1/-1' }}>
+        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.22em', color:'#00c2a8', marginBottom:'1rem', paddingBottom:'.5rem', borderBottom:'1px solid #1e2028' }}>
+          CURRENT CONDITIONS — {stadium?.name?.toUpperCase() ?? gameInfo?.venue?.toUpperCase()}
+        </div>
+
+        {/* API key notice */}
+        {!hasWeatherKey && (
+          <div style={{ background:'rgba(245,166,35,.06)', border:'1px solid rgba(245,166,35,.2)', borderRadius:'8px', padding:'.85rem 1.1rem', fontSize:'.8rem', color:'#f5a623', marginBottom:'1rem', display:'flex', gap:'.75rem', alignItems:'center' }}>
+            <span style={{ fontSize:'1.2rem' }}>⚠️</span>
+            <div>Add <strong>OPENWEATHER_API_KEY</strong> to your Vercel environment variables for real-time hyper-local weather. Using MLB weather data as fallback.{' '}
+              <a href="https://openweathermap.org/api" target="_blank" rel="noopener" style={{ color:'#f5a623' }}>Get free key →</a>
+            </div>
+          </div>
+        )}
+
+        {/* Main prediction banner */}
+        {pred && (
+          <div style={{ background: pred.color + '18', border:`1px solid ${pred.color}44`, borderRadius:'10px', padding:'1rem 1.4rem', marginBottom:'1.25rem', display:'flex', alignItems:'center', gap:'1rem' }}>
+            <div style={{ fontSize:'2rem' }}>{pred.grade}</div>
+            <div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.3rem', color: pred.color, letterSpacing:'.05em' }}>{pred.text}</div>
+              <div style={{ fontSize:'.78rem', color:'#5c6070', marginTop:'.2rem' }}>
+                Combined HR factor: <strong style={{ color:'#f0f2f8' }}>{Math.round((combinedAnalysis.totalHrFactor-1)*100)}%</strong> vs league avg ·
+                {combinedAnalysis.ouAdjustment !== null && (
+                  <> O/U adjustment: <strong style={{ color: combinedAnalysis.ouAdjustment > 0 ? '#c8102e' : '#2171b5' }}>
+                    {combinedAnalysis.ouAdjustment > 0 ? '+' : ''}{combinedAnalysis.ouAdjustment} runs
+                  </strong></>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Weather + park grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:'.75rem', marginBottom:'1.25rem' }}>
+          {weather && (<>
+            <CondTile icon="🌡️" label="Temperature" value={`${weather.temp}°F`} sub={`Feels ${weather.feelsLike}°F`} color={weather.temp >= 80 ? '#c8102e' : weather.temp <= 50 ? '#2171b5' : '#9e9e9e'} />
+            <CondTile icon="💨" label={`Wind · ${weather.wind.direction}`} value={`${weather.wind.speed} mph`} sub={weather.wind.label} color={weather.wind.component > 0.3 ? '#c8102e' : weather.wind.component < -0.3 ? '#2171b5' : '#9e9e9e'} />
+            {weather.humidity != null && <CondTile icon="💧" label="Humidity" value={`${weather.humidity}%`} sub="Relative" color="#9e9e9e" />}
+            <CondTile icon="☁️" label="Conditions" value={weather.condition} sub={weather.description} color="#9e9e9e" />
+          </>)}
+          {stadium && (<>
+            <CondTile icon="⛰️" label="Altitude" value={`${stadium.alt.toLocaleString()} ft`} sub={stadium.alt >= 2000 ? 'High altitude' : 'Sea level'} color={stadium.alt >= 4000 ? '#c8102e' : stadium.alt >= 1000 ? '#f47c7c' : '#9e9e9e'} />
+            <CondTile icon="🏟️" label="Roof" value={stadium.roof === 'dome' ? 'Dome' : stadium.roof === 'retract' ? 'Retractable' : 'Open Air'} sub={stadium.roof === 'dome' ? 'Weather-proof' : stadium.roof === 'retract' ? 'May be closed' : 'Fully exposed'} color="#9e9e9e" />
+          </>)}
+        </div>
+
+        {/* Weather notes */}
+        {weatherAnalysis?.notes?.length > 0 && (
+          <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'8px', padding:'.85rem 1rem', marginBottom:'1.25rem' }}>
+            {weatherAnalysis.notes.map((n, i) => (
+              <div key={i} style={{ fontSize:'.82rem', color:'#b8bdd0', padding:'.2rem 0', borderBottom: i < weatherAnalysis.notes.length-1 ? '1px solid #1e2028' : 'none' }}>{n}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── PARK FACTORS ── */}
+      <div>
+        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.22em', color:'#00c2a8', marginBottom:'1rem', paddingBottom:'.5rem', borderBottom:'1px solid #1e2028' }}>
+          PARK FACTORS (3-YR AVG · 100 = NEUTRAL)
+        </div>
+        <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', overflow:'hidden', marginBottom:'1rem' }}>
+          {parkFactors && [
+            { label:'Home Runs',   val: parkFactors.hr,      note: parkFactors.hrLabel },
+            { label:'Run Scoring', val: parkFactors.runs,    note: parkFactors.runLabel },
+            { label:'Total Hits',  val: parkFactors.hits,    note: null },
+            { label:'Doubles',     val: parkFactors.doubles, note: null },
+          ].map(({ label, val, note }, i) => {
+            const isGood = val >= 100;
+            const color  = val >= 110 ? '#c8102e' : val >= 104 ? '#f47c7c' : val >= 97 ? '#9e9e9e' : val >= 91 ? '#6baed6' : '#2171b5';
+            const barW   = Math.min(100, Math.max(0, (val - 70) / 60 * 100));
+            return (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.65rem 1rem', borderBottom: i < 3 ? '1px solid #1e2028' : 'none' }}>
+                <div style={{ width:'95px', flexShrink:0, fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.78rem', fontWeight:600, color:'#b8bdd0' }}>{label}</div>
+                <div style={{ flex:1, height:'6px', background:'#1e2028', borderRadius:'3px', position:'relative' }}>
+                  <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:'1px', background:'#2a2f3f' }} />
+                  <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${barW}%`, background:color, borderRadius:'3px' }} />
+                </div>
+                <div style={{ width:'36px', flexShrink:0, textAlign:'center', fontFamily:"'Bebas Neue',sans-serif", fontSize:'1rem', color }}>
+                  {val}
+                </div>
+                {note && <div style={{ fontSize:'.65rem', color:'#5c6070', whiteSpace:'nowrap' }}>{note}</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Stadium dimensions */}
+        {stadium?.dims && (
+          <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', padding:'1rem' }}>
+            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.68rem', fontWeight:700, letterSpacing:'.15em', color:'#5c6070', marginBottom:'.75rem' }}>STADIUM DIMENSIONS</div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'.5rem' }}>
+              {[['LF', stadium.dims.lf], ['LF Gap', stadium.dims.lf_gap], ['CF', stadium.dims.cf], ['RF Gap', stadium.dims.rf_gap], ['RF', stadium.dims.rf]].map(([l, v]) => (
+                <div key={l} style={{ textAlign:'center' }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.1rem', color: v <= 320 ? '#c8102e' : v >= 400 ? '#2171b5' : '#f0f2f8' }}>{v}</div>
+                  <div style={{ fontSize:'.6rem', color:'#3a3f52', fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, letterSpacing:'.1em' }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:'.5rem', paddingTop:'.5rem', borderTop:'1px solid #1e2028' }}>
+              <div style={{ fontSize:'.72rem', color:'#5c6070' }}>Wall heights (ft):</div>
+              {[['LF', stadium.wall.lf], ['CF', stadium.wall.cf], ['RF', stadium.wall.rf]].map(([l, v]) => (
+                <div key={l} style={{ fontSize:'.72rem', color: v >= 30 ? '#6baed6' : '#b8bdd0' }}>{l}: <strong>{v}ft</strong></div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── PITCHER MATCHUP ── */}
+      <div>
+        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.22em', color:'#00c2a8', marginBottom:'1rem', paddingBottom:'.5rem', borderBottom:'1px solid #1e2028' }}>
+          PROBABLE STARTERS
+        </div>
+        {[
+          { label:'AWAY', pitcher: pitchers?.away, color: awayColor, abbr: gameInfo?.away?.abbr },
+          { label:'HOME', pitcher: pitchers?.home, color: homeColor, abbr: gameInfo?.home?.abbr },
+        ].map(({ label, pitcher, color, abbr }) => pitcher && (
+          <div key={label} style={{ background:'#0d1117', border:`1px solid ${color}22`, borderRadius:'10px', padding:'1rem', marginBottom:'.75rem' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'.75rem', marginBottom:'.75rem' }}>
+              {pitcher.id && (
+                <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${pitcher.id}/headshot/67/current`}
+                  alt="" style={{ width:'36px', height:'36px', borderRadius:'50%', objectFit:'cover', background:'#1e2028', flexShrink:0 }}
+                  onError={e => e.target.style.display='none'} />
+              )}
+              <div>
+                <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.15em', color }}>{label} · {abbr}</div>
+                <div style={{ fontWeight:600, color:'#f0f2f8', fontSize:'.9rem' }}>{pitcher.name}</div>
+              </div>
+            </div>
+            {pitcher.stats && pitcher.stats.era !== '--' && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'.35rem' }}>
+                {[
+                  { l:'ERA',  v: pitcher.stats.era,  good: v => parseFloat(v) <= 3.5 },
+                  { l:'WHIP', v: pitcher.stats.whip, good: v => parseFloat(v) <= 1.2 },
+                  { l:'K/9',  v: pitcher.stats.k9,   good: v => parseFloat(v) >= 9   },
+                  { l:'BB/9', v: pitcher.stats.bb9,  good: v => parseFloat(v) <= 3   },
+                  { l:'HR/9', v: pitcher.stats.hr9,  good: v => parseFloat(v) <= 1   },
+                  { l:'IP',   v: pitcher.stats.ip,   good: () => false },
+                ].map(({ l, v, good }) => (
+                  <div key={l} style={{ background:'#080c12', borderRadius:'6px', padding:'.4rem .6rem', textAlign:'center' }}>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1rem', color: good(v) ? '#f47c7c' : '#b8bdd0' }}>{v}</div>
+                    <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.1em', color:'#3a3f52' }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* H2H matchups */}
+        {h2h?.length > 0 && (
+          <>
+            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.22em', color:'#00c2a8', margin:'1.25rem 0 .75rem', paddingBottom:'.5rem', borderBottom:'1px solid #1e2028' }}>
+              CAREER BATTER vs PITCHER
+            </div>
+            {h2h.map((m, i) => (
+              <div key={i} style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'8px', padding:'.75rem 1rem', marginBottom:'.5rem', display:'flex', alignItems:'center', gap:'.75rem' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:'.85rem', fontWeight:600, color:'#f0f2f8', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {m.batterName}
+                  </div>
+                  <div style={{ fontSize:'.72rem', color:'#5c6070' }}>vs {m.pitcherName}</div>
+                </div>
+                <div style={{ textAlign:'center', flexShrink:0 }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.1rem', color:'#f0f2f8' }}>{m.avg}</div>
+                  <div style={{ fontSize:'.6rem', color:'#3a3f52', fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:'.1em' }}>{m.hits}-{m.ab}</div>
+                </div>
+                {m.hr > 0 && (
+                  <div style={{ background: m.hr >= 3 ? 'rgba(200,16,46,.15)' : 'rgba(244,124,124,.1)', border:`1px solid ${m.hr >= 3 ? '#c8102e' : '#f47c7c'}44`, borderRadius:'6px', padding:'.25rem .55rem', flexShrink:0 }}>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'.95rem', color: m.hr >= 3 ? '#c8102e' : '#f47c7c' }}>💣 {m.hr} HR</div>
+                  </div>
+                )}
+                {(m.hotNote || m.coldNote) && (
+                  <div style={{ fontSize:'.72rem', color: m.hotNote ? '#c8102e' : '#6baed6', flexShrink:0 }}>
+                    {m.hotNote ?? m.coldNote}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+        {h2h?.length === 0 && (
+          <div style={{ fontSize:'.8rem', color:'#3a3f52', padding:'1rem 0' }}>No significant H2H matchup history found.</div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+// Small tile for weather metrics
+function CondTile({ icon, label, value, sub, color }) {
+  return (
+    <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', padding:'.85rem 1rem' }}>
+      <div style={{ fontSize:'1.2rem', marginBottom:'.3rem' }}>{icon}</div>
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.1rem', color: color ?? '#f0f2f8' }}>{value}</div>
+      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.1em', color:'#5c6070', marginTop:'.1rem' }}>{label}</div>
+      {sub && <div style={{ fontSize:'.65rem', color:'#3a3f52', marginTop:'.15rem' }}>{sub}</div>}
+    </div>
   );
 }
 
