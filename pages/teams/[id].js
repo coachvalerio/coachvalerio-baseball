@@ -61,12 +61,15 @@ export default function TeamPage() {
   const isReady = router.isReady;
   const SEASON  = getCurrentSeason();
 
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState('roster');    // roster | hitting | pitching | splits | news
-  const [rosterTab, setRosterTab] = useState('batters'); // batters | pitchers
-  const [sortKey, setSortKey] = useState(null);
-  const [sortDir, setSortDir] = useState('desc');
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [tab, setTab]             = useState('roster');
+  const [rosterTab, setRosterTab] = useState('batters');
+  const [sortKey, setSortKey]     = useState(null);
+  const [sortDir, setSortDir]     = useState('desc');
+  const [level, setLevel]         = useState('mlb');   // mlb | aaa | aa | higha | lowa | rookie
+  const [affRoster, setAffRoster] = useState(null);    // { roster, affiliateName, level }
+  const [affLoading, setAffLoading] = useState(false);
 
   useEffect(() => {
     if (!isReady || !id) return;
@@ -76,6 +79,16 @@ export default function TeamPage() {
       .then(d => { setData(d); setLoading(false); })
       .catch(err => { setData({ error: err.message }); setLoading(false); });
   }, [isReady, id]);
+
+  useEffect(() => {
+    if (level === 'mlb' || !id) return;
+    setAffLoading(true);
+    setAffRoster(null);
+    fetch(`/api/team?id=${id}&level=${level}`)
+      .then(r => r.json())
+      .then(d => { setAffRoster(d); setAffLoading(false); })
+      .catch(() => setAffLoading(false));
+  }, [level, id]);
 
   if (loading) return (
     <div style={{ background:'#050608', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#5c6070', fontFamily:"'Barlow',sans-serif" }}>
@@ -92,6 +105,7 @@ export default function TeamPage() {
   );
 
   const { team, standing, roster, batting, pitching, transactions, season } = data;
+  const LEVEL_LABELS = { mlb:'MLB', aaa:'Triple-A', aa:'Double-A', higha:'High-A', lowa:'Low-A', rookie:'Rookie' };
   const color  = TEAM_COLORS[parseInt(id)] ?? '#00c2a8';
   const colorA = color + '22';
 
@@ -240,16 +254,67 @@ export default function TeamPage() {
         {/* ── ROSTER TAB ── */}
         {tab === 'roster' && (
           <div>
-            <div style={s.subTabs}>
-              {[['batters',`Position Players (${batters.length})`],['pitchers',`Pitchers (${pitchers.length})`]].map(([v,lbl]) => (
-                <button key={v} onClick={() => { setRosterTab(v); setSortKey(null); }}
-                  style={{ ...s.subBtn, ...(rosterTab === v ? { ...s.subBtnActive, borderColor: color, color } : {}) }}>
-                  {lbl}
-                </button>
-              ))}
+            {/* Level filter row */}
+            <div style={{ display:'flex', gap:'.4rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'center' }}>
+              <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.68rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52', marginRight:'.25rem' }}>LEVEL</span>
+              {['mlb','aaa','aa','higha','lowa','rookie'].map(lv => {
+                const hasAffiliate = lv === 'mlb' || data?.affiliates?.[lv];
+                return (
+                  <button key={lv}
+                    onClick={() => { if (hasAffiliate) { setLevel(lv); setSortKey(null); } }}
+                    style={{
+                      ...s.subBtn,
+                      ...(level === lv ? { ...s.subBtnActive, borderColor: color, color } : {}),
+                      opacity: hasAffiliate ? 1 : 0.3,
+                      cursor: hasAffiliate ? 'pointer' : 'default',
+                    }}>
+                    {LEVEL_LABELS[lv]}
+                    {lv !== 'mlb' && data?.affiliates?.[lv] && (
+                      <span style={{ fontSize:'.6rem', color:'#3a3f52', display:'block', fontWeight:400, letterSpacing:0 }}>
+                        {data.affiliates[lv].name}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            {rosterTab === 'batters' && (
+            {/* Affiliate loading state */}
+            {level !== 'mlb' && affLoading && (
+              <div style={{ color:'#5c6070', padding:'2rem', textAlign:'center', fontSize:'.88rem' }}>
+                Loading {LEVEL_LABELS[level]} roster…
+              </div>
+            )}
+
+            {/* Affiliate roster header */}
+            {level !== 'mlb' && !affLoading && affRoster && (
+              <div style={{ marginBottom:'.75rem', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.82rem', color:'#5c6070' }}>
+                <span style={{ color, fontWeight:700 }}>{affRoster.affiliateName}</span>
+                {' · '}{affRoster.level} Affiliate
+              </div>
+            )}
+
+            {/* Position / Pitcher sub-tabs */}
+            {(!affLoading) && (
+            <div style={s.subTabs}>
+              {(() => {
+                const activeRoster = level === 'mlb' ? { batters, pitchers } : {
+                  batters:  (affRoster?.roster ?? []).filter(p => !['SP','RP','CP'].includes(p.pos)),
+                  pitchers: (affRoster?.roster ?? []).filter(p => ['SP','RP','CP'].includes(p.pos)),
+                };
+                return [['batters',`Position Players (${activeRoster.batters.length})`],['pitchers',`Pitchers (${activeRoster.pitchers.length})`]].map(([v,lbl]) => (
+                  <button key={v} onClick={() => { setRosterTab(v); setSortKey(null); }}
+                    style={{ ...s.subBtn, ...(rosterTab === v ? { ...s.subBtnActive, borderColor: color, color } : {}) }}>
+                    {lbl}
+                  </button>
+                ));
+              })()}
+            </div>
+            )}
+
+            {rosterTab === 'batters' && !affLoading && (() => {
+              const activeBatters = level === 'mlb' ? batters : (affRoster?.roster ?? []).filter(p => !['SP','RP','CP'].includes(p.pos));
+              return (
               <div style={s.tableWrap}>
                 <table>
                   <thead>
@@ -269,7 +334,7 @@ export default function TeamPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedRoster(batters, 'hitting').map(p => (
+                    {sortedRoster(activeBatters, 'hitting').map(p => (
                       <tr key={p.id} className="roster-row"
                         onClick={() => router.push(`/players/${p.id}`)}
                         style={{ borderBottom: '1px solid #0f1018' }}>
@@ -299,9 +364,12 @@ export default function TeamPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+              );
+            })()}
 
-            {rosterTab === 'pitchers' && (
+            {rosterTab === 'pitchers' && !affLoading && (() => {
+              const activePitchers = level === 'mlb' ? pitchers : (affRoster?.roster ?? []).filter(p => ['SP','RP','CP'].includes(p.pos));
+              return (
               <div style={s.tableWrap}>
                 <table>
                   <thead>
@@ -321,7 +389,7 @@ export default function TeamPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedRoster(pitchers, 'pitching').map(p => (
+                    {sortedRoster(activePitchers, 'pitching').map(p => (
                       <tr key={p.id} className="roster-row"
                         onClick={() => router.push(`/players/${p.id}`)}
                         style={{ borderBottom: '1px solid #0f1018' }}>
@@ -351,7 +419,8 @@ export default function TeamPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
