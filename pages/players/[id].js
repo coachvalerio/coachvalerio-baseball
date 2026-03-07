@@ -509,51 +509,152 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
         })}
       </div>
 
-      {/* ── BETTING ODDS ── */}
+      {/* ── BEST BET ENGINE ── */}
       <div style={{...s.secLabel,color:colors.primary,marginTop:'1.5rem'}}>
-        Today's Betting Odds
-        <span style={{marginLeft:'1rem',fontSize:'.65rem',fontWeight:400,letterSpacing:'.08em',color:'#5c6070',textTransform:'none'}}>via The Odds API · FanDuel / DraftKings</span>
+        Today's Best Bet
+        <span style={{marginLeft:'1rem',fontSize:'.65rem',fontWeight:400,letterSpacing:'.08em',color:'#5c6070',textTransform:'none'}}>
+          · streak · splits · matchup · velocity · weather
+        </span>
       </div>
 
-      {odds?.available ? (
-        <OddsDisplay odds={odds} isPitcher={isPitcher} colors={colors} />
-      ) : (
-        <div style={{...s.card,padding:'1.5rem',textAlign:'center'}}>
-          <div style={{fontSize:'2rem',marginBottom:'.75rem'}}>🎲</div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',letterSpacing:'.1em',textTransform:'uppercase',color:'#f0f2f8',marginBottom:'.5rem'}}>
-            Betting Odds Coming Soon
+      <BestBetPanel odds={odds} colors={colors} isPitcher={isPitcher} />
+
+      {/* ── LIVE PROP LINES ── */}
+      {(odds?.available || odds?.hasApiKey === false) && (
+        <>
+          <div style={{...s.secLabel,color:colors.primary,marginTop:'2rem'}}>
+            Player Props
+            <span style={{marginLeft:'1rem',fontSize:'.65rem',fontWeight:400,letterSpacing:'.08em',color:'#5c6070',textTransform:'none'}}>via The Odds API</span>
           </div>
-          <div style={{fontSize:'.85rem',color:'#5c6070'}}>
-            Live FanDuel & DraftKings player props will appear here on game days.
-          </div>
-        </div>
+          {odds?.available ? (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(165px,1fr))',gap:'.75rem',marginBottom:'1.5rem'}}>
+              {(odds.props??[]).map((prop,i)=>{
+                const best = prop.outcomes?.reduce((a,b)=>parseFloat(a.price)<parseFloat(b.price)?b:a, prop.outcomes[0]);
+                const p = best?.price ?? null;
+                const implied = p ? (p > 0 ? Math.round(100/(p+100)*100) : Math.round(Math.abs(p)/(Math.abs(p)+100)*100)) : null;
+                return (
+                  <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.35rem'}}>{prop.label}</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',color:colors.primary,lineHeight:1}}>{p?(p>0?'+':'')+p:'—'}</div>
+                    {implied && <div style={{fontSize:'.65rem',color:'#5c6070',marginTop:'.2rem'}}>{implied}% implied</div>}
+                    <div style={{fontSize:'.58rem',color:'#3a3f52',marginTop:'.2rem'}}>{best?.bookmaker??'FanDuel'}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{...s.card,padding:'1rem',fontSize:'.82rem',color:'#3a3f52',textAlign:'center',marginBottom:'1.5rem'}}>
+              {odds?.message ?? 'Add ODDS_API_KEY to .env.local for live prop lines'}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-// ── Live odds display (shown when ODDS_API_KEY is set)
-function OddsDisplay({ odds, isPitcher, colors }) {
+// ── Best Bet Panel ────────────────────────────────────────────────────────
+function BestBetPanel({ odds, colors, isPitcher }) {
+  if (!odds) return (
+    <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',textAlign:'center',color:'#3a3f52',fontSize:'.85rem',marginBottom:'1.5rem'}}>
+      Analyzing matchup…
+    </div>
+  );
+
+  const { bestBet, factors, gameInfo, noGame, hasGame } = odds;
+  const gradeColor = bestBet?.color ?? '#3a3f52';
+
+  if (!hasGame || noGame) return (
+    <div style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'10px',padding:'1.5rem',marginBottom:'1.5rem'}}>
+      <div style={{fontSize:'.85rem',color:'#5c6070',textAlign:'center'}}>No game scheduled today — check back on game days.</div>
+    </div>
+  );
+
   return (
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))',gap:'.75rem',marginBottom:'2rem'}}>
-      {(odds.props??[]).map((prop,i)=>{
-        const best = prop.outcomes?.reduce((a,b)=>parseFloat(a.price)<parseFloat(b.price)?b:a, prop.outcomes[0]);
-        const americanOdds = best?.price ?? '—';
-        const implied = americanOdds !== '—'
-          ? americanOdds > 0
-            ? Math.round(100/(parseFloat(americanOdds)+100)*100)
-            : Math.round(Math.abs(parseFloat(americanOdds))/(Math.abs(parseFloat(americanOdds))+100)*100)
-          : null;
-        return (
-          <div key={i} style={{background:'#111318',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.4rem'}}>{prop.label}</div>
-            {prop.line && <div style={{fontSize:'.7rem',color:'#5c6070',marginBottom:'.2rem'}}>O/U {prop.line}</div>}
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',color:colors.primary}}>{americanOdds>0?'+':''}{americanOdds}</div>
-            {implied && <div style={{fontSize:'.68rem',color:'#5c6070',marginTop:'.2rem'}}>{implied}% implied</div>}
-            <div style={{fontSize:'.62rem',color:'#3a3f52',marginTop:'.25rem'}}>{best?.bookmaker??'FanDuel'}</div>
+    <div style={{background:'#111318',border:`1px solid ${gradeColor}44`,borderRadius:'10px',overflow:'hidden',marginBottom:'1.5rem'}}>
+      {/* Game context bar */}
+      {gameInfo && (
+        <div style={{display:'flex',alignItems:'center',gap:'1rem',padding:'.6rem 1rem',background:'#0a0b0f',borderBottom:'1px solid #1e2028',flexWrap:'wrap'}}>
+          {gameInfo.opponentId && <img src={`https://www.mlbstatic.com/team-logos/${gameInfo.opponentId}.svg`} alt="" style={{width:'22px',height:'22px',objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>}
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',fontWeight:700,letterSpacing:'.1em',color:'#f0f2f8'}}>vs {gameInfo.opponentAbbr ?? gameInfo.opponent}</span>
+          {gameInfo.probablePitcher && <span style={{fontSize:'.72rem',color:'#5c6070'}}>⚾ {gameInfo.probablePitcher}</span>}
+          {gameInfo.venue && <span style={{fontSize:'.68rem',color:'#3a3f52',marginLeft:'auto'}}>{gameInfo.venue}</span>}
+        </div>
+      )}
+
+      <div style={{padding:'1.25rem'}}>
+        {bestBet ? (
+          <>
+            {/* Grade + recommendation */}
+            <div style={{display:'flex',alignItems:'center',gap:'1rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+              <div style={{width:'60px',height:'60px',borderRadius:'50%',border:`2px solid ${gradeColor}`,display:'flex',alignItems:'center',justifyContent:'center',background:gradeColor+'12',flexShrink:0}}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.grade}</span>
+              </div>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginBottom:'.15rem'}}>BEST BET TODAY</div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',color:gradeColor,lineHeight:1}}>{bestBet.prop}</div>
+                <div style={{fontSize:'.8rem',color:'#f0f2f8',marginTop:'.2rem',fontWeight:600}}>{bestBet.text}</div>
+              </div>
+              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginBottom:'.25rem'}}>CONFIDENCE</div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.confidence}%</div>
+                {/* Confidence bar */}
+                <div style={{width:'80px',height:'4px',background:'#1e2028',borderRadius:'2px',marginTop:'.3rem',overflow:'hidden'}}>
+                  <div style={{width:`${bestBet.confidence}%`,height:'100%',background:gradeColor,borderRadius:'2px'}}/>
+                </div>
+              </div>
+            </div>
+
+            {/* Supporting factors */}
+            {bestBet.supporting?.length > 0 && (
+              <div style={{marginBottom:'.75rem'}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:gradeColor,marginBottom:'.4rem'}}>
+                  {bestBet.recommendation === 'FADE' ? '⚠ REASONS TO FADE' : '✅ WHY THIS BET'}
+                </div>
+                {bestBet.supporting.map((f,i) => (
+                  <div key={i} style={{fontSize:'.82rem',color:'#b8bdd0',padding:'.2rem 0',borderBottom:'1px solid #0f1018'}}>{f}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Opposing factors */}
+            {bestBet.opposing?.length > 0 && (
+              <div style={{marginBottom:'.75rem'}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:'#e63535',marginBottom:'.4rem'}}>RISKS</div>
+                {bestBet.opposing.map((f,i) => (
+                  <div key={i} style={{fontSize:'.78rem',color:'#5c6070',padding:'.2rem 0'}}>{f}</div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{textAlign:'center',color:'#5c6070',fontSize:'.85rem',padding:'.5rem 0'}}>
+            Insufficient signal — no strong bet today. All factors near neutral.
           </div>
-        );
-      })}
+        )}
+
+        {/* Factor breakdown */}
+        {factors && factors.filter(f => f?.label).length > 0 && (
+          <div style={{borderTop:'1px solid #1e2028',marginTop:'.75rem',paddingTop:'.75rem'}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginBottom:'.5rem'}}>ALL SIGNALS</div>
+            <div style={{display:'flex',flexDirection:'column',gap:'.3rem'}}>
+              {factors.filter(f => f?.label).map((f,i) => {
+                const col = f.score > 0 ? '#2ed47a' : f.score < 0 ? '#e63535' : '#5c6070';
+                return (
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:'.6rem'}}>
+                    <div style={{width:'28px',height:'5px',borderRadius:'3px',background:col,opacity:Math.min(1,.4+Math.abs(f.score??0)*.2),flexShrink:0}}/>
+                    <span style={{fontSize:'.78rem',color:'#b8bdd0'}}>{f.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{fontSize:'.62rem',color:'#3a3f52',marginTop:'1rem',paddingTop:'.5rem',borderTop:'1px solid #0f1018'}}>
+          For entertainment only. Not financial advice. Gamble responsibly.
+        </div>
+      </div>
     </div>
   );
 }
