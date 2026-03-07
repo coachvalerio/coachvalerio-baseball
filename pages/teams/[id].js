@@ -83,8 +83,10 @@ export default function TeamPage() {
   );
 
   if (!data?.team) return (
-    <div style={{ background:'#050608', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#5c6070' }}>
-      Team not found.
+    <div style={{ background:'#050608', minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#5c6070', fontFamily:"'Barlow',sans-serif", gap:'1rem' }}>
+      <div style={{ fontSize:'1.1rem' }}>Team not found.</div>
+      {data?.error && <div style={{ fontSize:'.8rem', color:'#e63535', maxWidth:'500px', textAlign:'center' }}>{data.error}</div>}
+      <a href="/teams" style={{ color:'#00c2a8', fontSize:'.85rem' }}>← Back to all teams</a>
     </div>
   );
 

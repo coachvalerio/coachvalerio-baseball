@@ -9,21 +9,13 @@ export default async function handler(req, res) {
   const season = new Date().getFullYear();
 
   try {
-    const [
-      teamRes, rosterRes, standingsRes,
-      teamHitRes, teamPitRes, newsRes,
-    ] = await Promise.all([
-      // Team info
+    // Fetch in two waves: first wave gets IDs, second wave gets player stats
+    const [teamRes, rosterRes, standingsRes, teamHitRes, teamPitRes, newsRes] = await Promise.all([
       fetch(`https://statsapi.mlb.com/api/v1/teams/${id}?hydrate=venue,division,league`),
-      // Full 40-man roster with position + status
-      fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=fullRoster&season=${season}&hydrate=person(stats(type=season,season=${season},group=[hitting,pitching]))`),
-      // Division standings
+      fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/roster?rosterType=fullRoster&season=${season}`),
       fetch(`https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=regularSeason&hydrate=team,division`),
-      // Team batting stats
       fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/stats?stats=season&season=${season}&group=hitting`),
-      // Team pitching stats
       fetch(`https://statsapi.mlb.com/api/v1/teams/${id}/stats?stats=season&season=${season}&group=pitching`),
-      // Recent news via MLB transactions (gives us recent activity)
       fetch(`https://statsapi.mlb.com/api/v1/transactions?teamId=${id}&startDate=${daysAgo(30)}&endDate=${today()}&sportId=1`),
     ]);
 
@@ -32,14 +24,35 @@ export default async function handler(req, res) {
       teamHitRes.json(), teamPitRes.json(), newsRes.json(),
     ]);
 
+    // Second wave: batch-fetch season stats for all roster players
+    const playerIds = (rosterData.roster ?? []).map(p => p.person?.id).filter(Boolean);
+    let playerStatsMap = {};
+    if (playerIds.length > 0) {
+      // MLB API allows up to ~50 per request — chunk if needed
+      const chunks = [];
+      for (let i = 0; i < playerIds.length; i += 50) chunks.push(playerIds.slice(i, i + 50));
+      await Promise.all(chunks.map(async (chunk) => {
+        try {
+          const r = await fetch(
+            `https://statsapi.mlb.com/api/v1/people?personIds=${chunk.join(',')}&hydrate=stats(group=[hitting,pitching],type=season,season=${season})`
+          );
+          const d = await r.json();
+          for (const p of d.people ?? []) {
+            playerStatsMap[p.id] = p.stats ?? [];
+          }
+        } catch {}
+      }));
+    }
+
     const team = teamData.teams?.[0] ?? {};
 
     // ── Roster: split into batters, pitchers, catchers
     const roster = (rosterData.roster ?? []).map(p => {
-      const person = p.person ?? {};
-      const pos    = p.position?.abbreviation ?? p.position?.name ?? '—';
-      const hitStat = person.stats?.find(s => s.group?.displayName === 'hitting')?.splits?.[0]?.stat ?? null;
-      const pitStat = person.stats?.find(s => s.group?.displayName === 'pitching')?.splits?.[0]?.stat ?? null;
+      const person  = p.person ?? {};
+      const pos     = p.position?.abbreviation ?? p.position?.name ?? '—';
+      const pStats  = playerStatsMap[person.id] ?? [];
+      const hitStat = pStats.find(s => s.group?.displayName === 'hitting')?.splits?.[0]?.stat ?? null;
+      const pitStat = pStats.find(s => s.group?.displayName === 'pitching')?.splits?.[0]?.stat ?? null;
       return {
         id:       person.id,
         name:     person.fullName,
@@ -131,7 +144,8 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('Team API error:', err);
+    return res.status(500).json({ error: err.message, stack: err.stack?.slice(0, 300) });
   }
 }
 
