@@ -61,15 +61,21 @@ export default async function handler(req, res) {
           const sp = find(stxt);
           if (sp) {
             sprintVal = sp.r_sprint_speed ?? sp.sprint_speed ?? null;
-            const rawPct = numOrNull(sp.r_sprint_speed_pct ?? sp.sprint_speed_pct ?? sp.pct_rank ?? sp.percentile);
+            // Try direct percentile from CSV first
+            const rawPct = numOrNull(
+              sp.r_sprint_speed_pct ?? sp.sprint_speed_pct ?? sp.pct_rank ?? sp.percentile ?? sp.hp_to_1b_pct
+            );
             if (rawPct !== null) {
               sprintPct = rawPct;
             } else if (sprintVal) {
+              // Recalibrated against Savant's actual distribution
+              // 27.0 ft/s = ~40th percentile (Bryce Harper 2025)
               const sv = parseFloat(sprintVal);
               sprintPct = isNaN(sv) ? null
-                : sv >= 29.5 ? 99 : sv >= 29.0 ? 95 : sv >= 28.5 ? 90
-                : sv >= 28.0 ? 80 : sv >= 27.5 ? 70 : sv >= 27.0 ? 55
-                : sv >= 26.5 ? 40 : sv >= 26.0 ? 28 : sv >= 25.5 ? 18 : 8;
+                : sv >= 30.0 ? 99 : sv >= 29.5 ? 97 : sv >= 29.0 ? 93
+                : sv >= 28.5 ? 85 : sv >= 28.0 ? 74 : sv >= 27.5 ? 61
+                : sv >= 27.0 ? 47 : sv >= 26.5 ? 34 : sv >= 26.0 ? 22
+                : sv >= 25.5 ? 13 : sv >= 25.0 ? 7 : 3;
             }
           }
         } catch {}
@@ -84,13 +90,39 @@ export default async function handler(req, res) {
           const op = find(otxt);
           if (op) {
             oaaVal = op.outs_above_average ?? op.oaa ?? null;
-            const rawPct = numOrNull(op.outs_above_average_pct ?? op.oaa_pct ?? op.percentile ?? op.pct_rank);
+            const rawPct = numOrNull(
+              op.outs_above_average_pct ?? op.oaa_pct ?? op.percentile ?? op.pct_rank ?? op.range_factor_pct
+            );
             if (rawPct !== null) {
               oaaPct = rawPct;
             } else if (oaaVal !== null) {
               const o = parseInt(oaaVal);
               oaaPct = o >= 15 ? 99 : o >= 10 ? 95 : o >= 6 ? 88 : o >= 3 ? 75
                 : o >= 1 ? 62 : o === 0 ? 50 : o >= -2 ? 38 : o >= -5 ? 25 : 8;
+            }
+          }
+        } catch {}
+
+        // ── 5. Arm Strength (separate endpoint)
+        let armVal = null, armPct = null;
+        try {
+          const atxt = await fetch(
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?type=Fielder&year=${yr}&pos=&team=&min=0&csv=true`,
+            { headers: H }
+          ).then(r => r.ok ? r.text() : '');
+          const ap = find(atxt);
+          if (ap) {
+            armVal = ap.arm_strength ?? ap.pop_time ?? ap.max_throw_speed ?? null;
+            const rawPct = numOrNull(ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank);
+            if (rawPct !== null) {
+              armPct = rawPct;
+            } else if (armVal !== null) {
+              // Arm strength in mph: league avg ~75-78mph, elite 85+
+              const av = parseFloat(armVal);
+              armPct = isNaN(av) ? null
+                : av >= 90 ? 99 : av >= 87 ? 95 : av >= 84 ? 88
+                : av >= 81 ? 78 : av >= 78 ? 65 : av >= 75 ? 50
+                : av >= 72 ? 36 : av >= 69 ? 23 : av >= 66 ? 12 : 5;
             }
           }
         } catch {}
@@ -122,10 +154,10 @@ export default async function handler(req, res) {
         const dec  = (n, d) => n != null ? n.toFixed(d) : null;
         const pctF = (n) => n != null ? (n > 1 ? n : n * 100).toFixed(1) + '%' : null;
 
-        // ── 6. Compute estimated percentiles for metrics Savant doesn't rank
+        // ── 6. Compute estimated percentiles for metrics Savant doesn't always rank
         // Sweet Spot% — MLB avg ~33%, elite ~40%+
-        const ssRaw = raw('sweet_spot_percent', 'sweet_spot', 'sweet_spot_pct', 'ss_percent');
-        const sweetSpotPct = ssRaw != null
+        const ssRaw = raw('sweet_spot_percent', 'sweet_spot', 'sweet_spot_pct', 'ss_percent', 'la_sweet_spot_percent');
+        const sweetSpotEstPct = ssRaw != null
           ? ssRaw >= 40 ? 90 : ssRaw >= 37 ? 80 : ssRaw >= 34 ? 65
           : ssRaw >= 31 ? 50 : ssRaw >= 28 ? 35 : 20
           : null;
@@ -133,11 +165,10 @@ export default async function handler(req, res) {
         // Launch Angle — optimal is 10–18°, MLB avg ~12–14°
         const laRaw = raw('avg_launch_angle', 'launch_angle_avg', 'la_avg', 'avg_la', 'launch_angle');
         const laDisplay = laRaw != null ? laRaw.toFixed(1) + '\u00b0' : null;
-        const laPct = laRaw != null
+        const laEstPct = laRaw != null
           ? (laRaw >= 10 && laRaw <= 18) ? 85
           : (laRaw >= 7  && laRaw <= 22) ? 65
-          : (laRaw >= 4  && laRaw <= 26) ? 45
-          : 25
+          : (laRaw >= 4  && laRaw <= 26) ? 45 : 25
           : null;
 
         // ── 7. Build and return response
@@ -156,24 +187,29 @@ export default async function handler(req, res) {
             sweet_spot:    pctF(ssRaw),
             sprint_speed:  sprintVal ? parseFloat(sprintVal).toFixed(1) : null,
             outs_above_avg: oaaVal,
+            arm_strength:  armVal ? parseFloat(armVal).toFixed(1) : null,
 
             // Percentile ranks — from Savant CSV where available, estimated otherwise
-            xba_pct:        pct('xba', 'est_ba'),
-            xslg_pct:       pct('xslg', 'est_slg'),
-            xwoba_pct:      pct('xwoba', 'est_woba'),
-            ev_pct:         pct('exit_velocity', 'exit_velocity_avg', 'avg_hit_speed', 'ev_avg'),
-            hard_hit_pct:   pct('hard_hit', 'hard_hit_percent', 'hard_hit_rate'),
-            barrel_pct:     pct('barrel', 'brl_pa', 'barrel_batted_rate'),
-            sweet_spot_pct: sweetSpotPct,
-            launch_angle_pct: laPct,
-            avg_pct:        pct('batting_avg', 'batting_average', 'ba', 'avg'),
-            obp_pct:        pct('on_base_percent', 'obp', 'on_base_pct'),
-            slg_pct:        pct('slg', 'slugging_pct'),
-            ops_pct:        pct('on_base_plus_slg', 'ops'),
-            k_pct:          pct('strikeout_percent', 'k_percent', 'strikeout_pct'),
-            bb_pct:         pct('walk_percent', 'bb_percent', 'walk_pct'),
-            sprint_pct:     sprintPct,
-            oaa_pct:        oaaPct,
+            xba_pct:           pct('xba', 'est_ba'),
+            xslg_pct:          pct('xslg', 'est_slg'),
+            xwoba_pct:         pct('xwoba', 'est_woba'),
+            ev_pct:            pct('exit_velocity', 'exit_velocity_avg', 'avg_hit_speed', 'ev_avg'),
+            hard_hit_pct:      pct('hard_hit', 'hard_hit_percent', 'hard_hit_rate'),
+            // Barrel: Savant percentile CSV uses 'barrel' or 'brl_pa'
+            barrel_pct:        pct('barrel', 'brl_pa', 'barrel_batted_rate', 'brl_percent', 'barrel_rate'),
+            // Sweet Spot: Savant uses 'la_sweet_spot' or 'sweet_spot'
+            sweet_spot_pct:    pct('la_sweet_spot', 'sweet_spot', 'sweet_spot_percent', 'ss_percent') ?? sweetSpotEstPct,
+            // Launch Angle: not always in percentile CSV, use estimate
+            launch_angle_pct:  pct('launch_angle', 'avg_launch_angle', 'la_avg') ?? laEstPct,
+            avg_pct:           pct('batting_avg', 'batting_average', 'ba', 'avg'),
+            obp_pct:           pct('on_base_percent', 'obp', 'on_base_pct'),
+            slg_pct:           pct('slg', 'slugging_pct'),
+            ops_pct:           pct('on_base_plus_slg', 'ops'),
+            k_pct:             pct('strikeout_percent', 'k_percent', 'strikeout_pct'),
+            bb_pct:            pct('walk_percent', 'bb_percent', 'walk_pct'),
+            sprint_pct:        sprintPct,
+            oaa_pct:           oaaPct,
+            arm_strength_pct:  armPct,
           });
 
         } else {

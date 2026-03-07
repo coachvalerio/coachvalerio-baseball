@@ -475,11 +475,11 @@ function SavantTab({ id, stat, isPitcher, colors, savantUrl }) {
 function SavantStyleView({ tiles, data, isPitcher, year }) {
   // Group tiles into sections like Savant does
   const batGroups = [
-    { label:'Expected Stats', keys:['xba','xslg','xwoba'] },
-    { label:'Quality of Contact', keys:['exit_velocity','launch_angle','barrel','hard_hit','sweet_spot'] },
-    { label:'Plate Discipline', keys:['k_pct','bb_pct'] },
-    { label:'Speed', keys:['sprint_speed'] },
-    { label:'Fielding', keys:['outs_above_avg'] },
+    { label:'Expected Stats',      keys:['xba','xslg','xwoba'] },
+    { label:'Quality of Contact',  keys:['exit_velocity','launch_angle','barrel','hard_hit','sweet_spot'] },
+    { label:'Plate Discipline',    keys:['k_pct','bb_pct'] },
+    { label:'Fielding',            keys:['oaa_pct','arm_strength_pct','outs_above'] },
+    { label:'Speed',               keys:['sprint_pct','sprint_speed'] },
   ];
   const pitGroups = [
     { label:'Stuff', keys:['avg_fastball','whiff'] },
@@ -504,7 +504,11 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
       </div>
 
       {groups.map(group => {
-        const groupTiles = tiles.filter(t => group.keys.some(k => t.savantKey?.includes(k) || t.label?.toLowerCase().includes(k.replace(/_/g,' '))));
+        const groupTiles = tiles.filter(t => group.keys.some(k =>
+          t.savantKey?.includes(k) ||
+          t.label?.toLowerCase().includes(k.replace(/_/g,' ')) ||
+          t.label?.toLowerCase().replace(/[^a-z]/g,'').includes(k.replace(/_/g,''))
+        ));
         if (groupTiles.length === 0) return null;
         return (
           <div key={group.label}>
@@ -2096,7 +2100,8 @@ function getBatTiles(s, savantData) {
     {label:'Exit Velocity',   savantKey:'ev_pct',        val:savantData?.exit_velocity?(savantData.exit_velocity+' mph'):'--', sub:'Avg exit velo', bar:savantData?.exit_velocity?(parseFloat(savantData.exit_velocity)-80)/30:0, estimatedPct:savantData?.ev_pct ?? null},
     {label:'Launch Angle',    savantKey:'launch_angle_pct', val:savantData?.launch_angle??'--',    sub:'Avg degrees',      bar:0, estimatedPct:savantData?.launch_angle_pct ?? null},
     {label:'Sprint Speed',    savantKey:'sprint_pct',    val:savantData?.sprint_speed?(savantData.sprint_speed+' ft/s'):'--', sub:'ft/sec', bar:savantData?.sprint_speed?(parseFloat(savantData.sprint_speed)-22)/10:0, estimatedPct:savantData?.sprint_pct ?? null},
-    {label:'Outs Above Avg',  savantKey:'oaa_pct',       val:savantData?.outs_above_avg!=null?String(savantData.outs_above_avg):'--', sub:'Fielding', bar:0, estimatedPct:savantData?.oaa_pct ?? null},
+    {label:'Outs Above Avg',  savantKey:'oaa_pct',       val:savantData?.outs_above_avg!=null?String(savantData.outs_above_avg):'--', sub:'Range (OAA)', bar:0, estimatedPct:savantData?.oaa_pct ?? null},
+    {label:'Arm Strength',    savantKey:'arm_strength_pct', val:savantData?.arm_strength?(savantData.arm_strength+' mph'):'--', sub:'Avg throw mph', bar:savantData?.arm_strength?(parseFloat(savantData.arm_strength)-60)/35:0, estimatedPct:savantData?.arm_strength_pct ?? null},
   ];
 }
 
