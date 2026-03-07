@@ -94,7 +94,11 @@ function ouAdjustment(weatherFactor, parkHrFactor, parkRunFactor) {
 
 const safeFetch = async (url, opts = {}) => {
   try {
-    const r = await fetch(url, { ...opts, headers: { Accept: 'application/json', ...opts.headers } });
+    // Hard 4s timeout per fetch
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const r = await fetch(url, { ...opts, signal: controller.signal, headers: { Accept: 'application/json', ...opts.headers } });
+    clearTimeout(timer);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
@@ -106,7 +110,7 @@ export default async function handler(req, res) {
 
   const OW_KEY = process.env.OPENWEATHER_API_KEY;
 
-  // ── 1. Get game info from MLB Stats API
+  // ── 1. Get game info — with tight timeout
   const feedData = await safeFetch(
     `https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`
   );
@@ -118,55 +122,62 @@ export default async function handler(req, res) {
   const homeId   = homeTeam.id;
   const stadium  = STADIUM_DATA[homeId] ?? null;
 
-  // Probable pitchers from game data
-  const homePitcherId = gd.probablePitchers?.home?.id ?? null;
-  const awayPitcherId = gd.probablePitchers?.away?.id ?? null;
+  const homePitcherId   = gd.probablePitchers?.home?.id ?? null;
+  const awayPitcherId   = gd.probablePitchers?.away?.id ?? null;
   const homePitcherName = gd.probablePitchers?.home?.fullName ?? 'TBD';
   const awayPitcherName = gd.probablePitchers?.away?.fullName ?? 'TBD';
 
-  // ── 2. Weather — OpenWeatherMap or MLB weather fallback
-  let weather = null;
-  if (OW_KEY && stadium) {
-    const owData = await safeFetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${stadium.lat}&lon=${stadium.lng}&appid=${OW_KEY}&units=imperial`
-    );
-    if (owData?.main) {
-      const wDeg  = owData.wind?.deg ?? null;
-      const wComp = stadium ? windComponent(wDeg, stadium.bearing) : 0;
-      weather = {
-        source:    'OpenWeatherMap',
-        temp:      Math.round(owData.main.temp),
-        feelsLike: Math.round(owData.main.feels_like),
-        humidity:  owData.main.humidity,
-        condition: owData.weather?.[0]?.main ?? 'Clear',
-        description: owData.weather?.[0]?.description ?? '',
-        icon:      owData.weather?.[0]?.icon ?? '01d',
-        wind: {
-          speed:     Math.round(owData.wind?.speed ?? 0),
-          deg:       wDeg,
-          direction: windDirLabel(wDeg),
-          component: Math.round(wComp * 100) / 100,
-          label:     wComp > 0.3 ? 'Blowing OUT' : wComp < -0.3 ? 'Blowing IN' : 'Crosswind',
-        },
-        visibility: owData.visibility ? Math.round(owData.visibility / 1609.34) : null,
-      };
-    }
-  }
+  const yr = new Date().getFullYear();
 
-  // Fallback to MLB weather if OW not available
-  if (!weather && gd.weather?.temp) {
+  // ── 2. Fire ALL external fetches in parallel (weather + both pitcher stats)
+  const [owData, homePitStats, awayPitStats] = await Promise.all([
+    // Weather
+    OW_KEY && stadium
+      ? safeFetch(`https://api.openweathermap.org/data/2.5/weather?lat=${stadium.lat}&lon=${stadium.lng}&appid=${OW_KEY}&units=imperial`)
+      : Promise.resolve(null),
+    // Pitcher stats
+    homePitcherId
+      ? safeFetch(`https://statsapi.mlb.com/api/v1/people/${homePitcherId}/stats?stats=season&group=pitching&season=${yr}`)
+      : Promise.resolve(null),
+    awayPitcherId
+      ? safeFetch(`https://statsapi.mlb.com/api/v1/people/${awayPitcherId}/stats?stats=season&group=pitching&season=${yr}`)
+      : Promise.resolve(null),
+  ]);
+
+  // ── 3. Weather
+  let weather = null;
+  if (owData?.main) {
+    const wDeg  = owData.wind?.deg ?? null;
+    const wComp = stadium ? windComponent(wDeg, stadium.bearing) : 0;
+    weather = {
+      source:      'OpenWeatherMap',
+      temp:        Math.round(owData.main.temp),
+      feelsLike:   Math.round(owData.main.feels_like),
+      humidity:    owData.main.humidity,
+      condition:   owData.weather?.[0]?.main ?? 'Clear',
+      description: owData.weather?.[0]?.description ?? '',
+      icon:        owData.weather?.[0]?.icon ?? '01d',
+      wind: {
+        speed:     Math.round(owData.wind?.speed ?? 0),
+        deg:       wDeg,
+        direction: windDirLabel(wDeg),
+        component: Math.round(wComp * 100) / 100,
+        label:     wComp > 0.3 ? 'Blowing OUT' : wComp < -0.3 ? 'Blowing IN' : 'Crosswind',
+      },
+    };
+  } else if (gd.weather?.temp) {
+    // MLB fallback
     const wDir   = gd.weather.wind?.direction ?? '';
     const wSpeed = parseInt(gd.weather.wind?.speed ?? 0);
-    // crude direction text → bearing offset
-    const wComp = /out|center/i.test(wDir) ? 0.8 : /in/i.test(wDir) ? -0.8 : 0;
+    const wComp  = /out|center/i.test(wDir) ? 0.8 : /in/i.test(wDir) ? -0.8 : 0;
     weather = {
-      source:    'MLB Stats API',
-      temp:      parseInt(gd.weather.temp),
-      feelsLike: parseInt(gd.weather.temp),
-      humidity:  null,
-      condition: gd.weather.condition ?? 'Unknown',
+      source:      'MLB Stats API',
+      temp:        parseInt(gd.weather.temp),
+      feelsLike:   parseInt(gd.weather.temp),
+      humidity:    null,
+      condition:   gd.weather.condition ?? 'Unknown',
       description: gd.weather.condition ?? '',
-      icon:      null,
+      icon:        null,
       wind: {
         speed:     wSpeed,
         deg:       null,
@@ -177,102 +188,74 @@ export default async function handler(req, res) {
     };
   }
 
-  // ── 3. Park + weather HR factor
+  // ── 4. Park + weather HR factor
   const pf = stadium?.pf ?? { hr: 100, runs: 100, h: 100, d: 100 };
   let weatherAnalysis = { factor: 1.0, notes: [] };
   if (weather && stadium) {
-    weatherAnalysis = hrWeatherFactor(
-      weather.temp,
-      weather.wind.speed,
-      weather.wind.component,
-      stadium.alt,
-      stadium.roof
-    );
+    weatherAnalysis = hrWeatherFactor(weather.temp, weather.wind.speed, weather.wind.component, stadium.alt, stadium.roof);
   } else if (!weather) {
     weatherAnalysis.notes.push('⚠️ Weather data unavailable — add OPENWEATHER_API_KEY for hyper-local forecast');
   }
 
   const ouAdj = weather ? ouAdjustment(weatherAnalysis.factor, pf.hr, pf.runs) : null;
 
-  // ── 4. H2H pitcher vs lineup context (sample top batters)
-  // Pull boxscore for batting orders
-  const liveData   = feedData.liveData ?? {};
-  const bs         = liveData.boxscore ?? {};
-  const awayBatters = (bs.teams?.away?.batters ?? []).slice(0, 5);
-  const homeBatters = (bs.teams?.home?.batters ?? []).slice(0, 5);
+  // ── 5. H2H — fire ALL at once, limit to 4 total batters (2 per side)
+  const liveData    = feedData.liveData ?? {};
+  const bs          = liveData.boxscore ?? {};
+  const awayBatters = (bs.teams?.away?.batters ?? []).slice(0, 2);
+  const homeBatters = (bs.teams?.home?.batters ?? []).slice(0, 2);
 
-  // Fetch pitcher season stats for both starters
-  const [homePitStats, awayPitStats] = await Promise.all([
-    homePitcherId ? safeFetch(`https://statsapi.mlb.com/api/v1/people/${homePitcherId}/stats?stats=season&group=pitching&season=${new Date().getFullYear()}`) : null,
-    awayPitcherId ? safeFetch(`https://statsapi.mlb.com/api/v1/people/${awayPitcherId}/stats?stats=season&group=pitching&season=${new Date().getFullYear()}`) : null,
-  ]);
+  const h2hFetches = [
+    ...awayBatters.map(bid => ({ bid, side: 'away', oppPitId: homePitcherId })),
+    ...homeBatters.map(bid => ({ bid, side: 'home', oppPitId: awayPitcherId })),
+  ].filter(x => x.oppPitId);
 
-  const extractPitStats = (d) => {
-    const s = d?.stats?.[0]?.splits?.[0]?.stat ?? {};
-    return {
-      era:  s.era   ?? '--',
-      whip: s.whip  ?? '--',
-      k9:   s.strikeoutsPer9Inn ?? '--',
-      bb9:  s.walksPer9Inn ?? '--',
-      hr9:  s.homeRunsPer9 ?? '--',
-      ip:   s.inningsPitched ?? '--',
-    };
-  };
+  const h2hRaw = await Promise.all(
+    h2hFetches.map(({ bid, oppPitId }) =>
+      safeFetch(`https://statsapi.mlb.com/api/v1/people/${bid}/stats?stats=vsPlayer&opposingPlayerId=${oppPitId}&group=hitting`)
+    )
+  );
 
-  // H2H: fetch career stats vs opposing pitcher for top batters
-  // Only fetch for available batters vs probable pitchers
   const h2hResults = [];
-  const pitcherToFace = { away: homePitcherId, home: awayPitcherId }; // away batters face home pitcher
+  h2hFetches.forEach(({ bid, side, oppPitId }, i) => {
+    const split = h2hRaw[i]?.stats?.[0]?.splits?.[0];
+    if (!split?.stat) return;
+    const s    = split.stat;
+    const ab   = parseInt(s.atBats ?? 0);
+    const hr   = parseInt(s.homeRuns ?? 0);
+    const hits = parseInt(s.hits ?? 0);
+    if (ab < 3) return;
 
-  for (const [side, batterIds] of [['away', awayBatters], ['home', homeBatters]]) {
-    const oppPitId = pitcherToFace[side];
-    if (!oppPitId || batterIds.length === 0) continue;
+    const batterInfo = bs.teams?.[side]?.players?.[`ID${bid}`];
+    const batterName = batterInfo?.person?.fullName ?? `Player ${bid}`;
 
-    // Sample up to 3 batters
-    for (const batterId of batterIds.slice(0, 3)) {
-      const h2hData = await safeFetch(
-        `https://statsapi.mlb.com/api/v1/people/${batterId}/stats?stats=vsPlayer&opposingPlayerId=${oppPitId}&group=hitting`
-      );
-      const split = h2hData?.stats?.[0]?.splits?.[0];
-      if (!split?.stat) continue;
+    h2hResults.push({
+      side, batterId: bid, batterName,
+      pitcherName: side === 'away' ? homePitcherName : awayPitcherName,
+      ab, hits, hr,
+      avg:      ab > 0 ? (hits / ab).toFixed(3) : '.000',
+      hrNote:   hr >= 3 ? `🚨 ${hr} HR in ${ab} AB` : hr >= 1 ? `⚡ ${hr} HR in ${ab} AB` : null,
+      hotNote:  ab >= 5 && (hits / ab) >= 0.400 ? `🔥 ${(hits/ab).toFixed(3)} career avg` : null,
+      coldNote: ab >= 5 && (hits / ab) <= 0.150 ? `🧊 Struggles (${(hits/ab).toFixed(3)})` : null,
+    });
+  });
 
-      const s   = split.stat;
-      const ab  = parseInt(s.atBats ?? 0);
-      const hr  = parseInt(s.homeRuns ?? 0);
-      const hits = parseInt(s.hits ?? 0);
+  h2hResults.sort((a, b) => b.hr - a.hr || (b.hits / Math.max(b.ab, 1)) - (a.hits / Math.max(a.ab, 1)));
 
-      if (ab < 3) continue; // not enough sample
-
-      // Get batter name from boxscore
-      const batterInfo = bs.teams?.[side]?.players?.[`ID${batterId}`];
-      const batterName = batterInfo?.person?.fullName ?? `Player ${batterId}`;
-
-      h2hResults.push({
-        side,
-        batterId,
-        batterName,
-        pitcherName: side === 'away' ? homePitcherName : awayPitcherName,
-        ab,  hits, hr,
-        avg: ab > 0 ? (hits / ab).toFixed(3) : '.000',
-        hrNote: hr >= 3 ? `🚨 ${hr} HR in ${ab} AB` : hr >= 1 ? `⚡ ${hr} HR in ${ab} AB` : null,
-        hotNote: ab >= 5 && (hits / ab) >= 0.400 ? `🔥 ${(hits/ab*1000/10).toFixed(0)}% career avg` : null,
-        coldNote: ab >= 5 && (hits / ab) <= 0.150 ? `🧊 Struggles (${(hits/ab).toFixed(3)})` : null,
-      });
-    }
-  }
-
-  // Sort by HR descending
-  h2hResults.sort((a, b) => b.hr - a.hr || (b.hits/Math.max(b.ab,1)) - (a.hits/Math.max(a.ab,1)));
-
-  // ── 5. Build HR prediction narrative
-  const hrPredictions = [];
+  // ── 6. HR prediction
   const totalHrFactor = weatherAnalysis.factor * (pf.hr / 100);
-  if (totalHrFactor >= 1.15)      hrPredictions.push({ grade:'🚀', text:'EXTREMELY favorable HR conditions today', color:'#c8102e' });
+  const hrPredictions = [];
+  if      (totalHrFactor >= 1.15) hrPredictions.push({ grade:'🚀', text:'EXTREMELY favorable HR conditions today', color:'#c8102e' });
   else if (totalHrFactor >= 1.08) hrPredictions.push({ grade:'🔥', text:'Very favorable for home runs', color:'#e8354a' });
   else if (totalHrFactor >= 1.03) hrPredictions.push({ grade:'✅', text:'Slightly above average HR conditions', color:'#f47c7c' });
   else if (totalHrFactor >= 0.97) hrPredictions.push({ grade:'➡️', text:'Neutral HR environment today', color:'#9e9e9e' });
   else if (totalHrFactor >= 0.90) hrPredictions.push({ grade:'📉', text:'Below average HR conditions', color:'#6baed6' });
   else                            hrPredictions.push({ grade:'🥶', text:'Very tough conditions for home runs', color:'#2171b5' });
+
+  const extractPitStats = (d) => {
+    const s = d?.stats?.[0]?.splits?.[0]?.stat ?? {};
+    return { era: s.era ?? '--', whip: s.whip ?? '--', k9: s.strikeoutsPer9Inn ?? '--', bb9: s.walksPer9Inn ?? '--', hr9: s.homeRunsPer9 ?? '--', ip: s.inningsPitched ?? '--' };
+  };
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
   return res.status(200).json({
@@ -281,34 +264,16 @@ export default async function handler(req, res) {
       home: { id: homeId, name: homeTeam.name, abbr: homeTeam.abbreviation },
       away: { id: awayTeam.id, name: awayTeam.name, abbr: awayTeam.abbreviation },
       venue: gd.venue?.name ?? stadium?.name ?? 'Unknown',
-      gameDate: gd.datetime?.dateTime ?? null,
     },
-    stadium: stadium ? {
-      name:    stadium.name,
-      roof:    stadium.roof,
-      alt:     stadium.alt,
-      dims:    stadium.dims,
-      wall:    stadium.wall,
-      bearing: stadium.bearing,
-    } : null,
+    stadium: stadium ? { name: stadium.name, roof: stadium.roof, alt: stadium.alt, dims: stadium.dims, wall: stadium.wall, bearing: stadium.bearing } : null,
     weather,
     parkFactors: {
-      hr:    pf.hr,
-      runs:  pf.runs,
-      hits:  pf.h,
-      doubles: pf.d,
-      hrLabel:   pf.hr >= 110 ? 'Very HR-Friendly' : pf.hr >= 105 ? 'HR-Friendly' : pf.hr >= 98 ? 'Neutral' : pf.hr >= 92 ? 'Pitcher-Friendly' : 'Very Pitcher-Friendly',
-      runLabel:  pf.runs >= 108 ? 'High-Scoring' : pf.runs >= 103 ? 'Above Average' : pf.runs >= 97 ? 'Neutral' : pf.runs >= 92 ? 'Below Average' : 'Low-Scoring',
+      hr: pf.hr, runs: pf.runs, hits: pf.h, doubles: pf.d,
+      hrLabel:  pf.hr  >= 110 ? 'Very HR-Friendly'  : pf.hr  >= 105 ? 'HR-Friendly'    : pf.hr  >= 98 ? 'Neutral' : pf.hr  >= 92 ? 'Pitcher-Friendly' : 'Very Pitcher-Friendly',
+      runLabel: pf.runs >= 108 ? 'High-Scoring'      : pf.runs >= 103 ? 'Above Average'  : pf.runs >= 97 ? 'Neutral' : pf.runs >= 92 ? 'Below Average'   : 'Low-Scoring',
     },
-    weatherAnalysis: {
-      hrFactor:  Math.round(weatherAnalysis.factor * 100) / 100,
-      notes:     weatherAnalysis.notes,
-    },
-    combinedAnalysis: {
-      totalHrFactor:  Math.round(totalHrFactor * 100) / 100,
-      ouAdjustment:   ouAdj,
-      prediction:     hrPredictions[0] ?? null,
-    },
+    weatherAnalysis: { hrFactor: Math.round(weatherAnalysis.factor * 100) / 100, notes: weatherAnalysis.notes },
+    combinedAnalysis: { totalHrFactor: Math.round(totalHrFactor * 100) / 100, ouAdjustment: ouAdj, prediction: hrPredictions[0] ?? null },
     pitchers: {
       home: { id: homePitcherId, name: homePitcherName, stats: extractPitStats(homePitStats) },
       away: { id: awayPitcherId, name: awayPitcherName, stats: extractPitStats(awayPitStats) },
