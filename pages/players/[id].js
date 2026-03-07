@@ -190,11 +190,12 @@ export default function PlayerPage() {
     <>
       <Head>
         <title>{player.fullName} — Coach</title>
-        <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" />
         <style>{`
           *{box-sizing:border-box;margin:0;padding:0}
-          body{background:#050608;font-family:'Barlow',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+          body{background:#050608;font-family:'Inter',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+          @keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
           .hero-img{width:100%;height:100%;object-fit:cover;object-position:center 25%;display:block;transition:opacity .3s ease}
           .tab-btn:hover{color:#f0f2f8!important}
           .sv-tile:hover{border-color:${colors.primary}!important;transform:translateY(-2px)}
@@ -493,7 +494,7 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
     <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', overflow:'hidden', marginBottom:'1.5rem' }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.75rem 1.25rem', borderBottom:'1px solid #1e2028', background:'#080c12' }}>
-        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.1rem', letterSpacing:'.1em', color:'#f0f2f8' }}>
+        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'1.1rem', letterSpacing:'.1em', color:'#f0f2f8' }}>
           {year} MLB Percentile Rankings
         </div>
         <div style={{ display:'flex', gap:'1.5rem', fontSize:'.65rem', fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, letterSpacing:'.12em' }}>
@@ -540,7 +541,7 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
                   {/* Badge */}
                   {pctNum !== null ? (
                     <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:col, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'.85rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
+                      <span style={{ fontFamily:"'Anton',sans-serif", fontSize:'.85rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
                     </div>
                   ) : (
                     <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#1e2028', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -574,7 +575,7 @@ function SavantTileView({ tiles, data, colors }) {
           <div key={i} style={{ ...s.svTile, transition:'border-color .2s,transform .15s', borderColor: pctNum !== null ? col+'33' : '#1e2028' }}>
             {pctNum !== null && (
               <div style={{ position:'absolute', top:'.5rem', right:'.5rem', width:'28px', height:'28px', borderRadius:'50%', background:col, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'.78rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
+                <span style={{ fontFamily:"'Anton',sans-serif", fontSize:'.78rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
               </div>
             )}
             <div style={s.svLabel}>{t.label}</div>
@@ -606,7 +607,7 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
           <div key={i} className="sv-tile" style={{...s.svTile,borderColor:pctNum?col+'33':'#1e2028'}}>
             {pctNum !== null && (
               <div style={{position:'absolute',top:'.5rem',right:'.5rem',width:'26px',height:'26px',borderRadius:'50%',background:col,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'.75rem',color:'#fff',lineHeight:1}}>{pctNum}</span>
+                <span style={{fontFamily:"'Anton',sans-serif",fontSize:'.75rem',color:'#fff',lineHeight:1}}>{pctNum}</span>
               </div>
             )}
             <div style={s.svLabel}>{t.label}</div>
@@ -728,7 +729,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
           return (
             <div key={m.key} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.9rem .85rem',textAlign:'center'}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.25rem'}}>{m.label}</div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',color:'#f0f2f8',lineHeight:1}}>{cur||'—'}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.9rem',color:'#f0f2f8',lineHeight:1}}>{cur||'—'}</div>
               <div style={{fontSize:'.68rem',color:up?colors.primary:'#e63535',marginTop:'.2rem'}}>{up?'▲':'▼'} vs prev yr</div>
             </div>
           );
@@ -761,7 +762,7 @@ function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTr
                 return (
                   <div key={i} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.35rem'}}>{prop.label}</div>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',color:colors.primary,lineHeight:1}}>{p?(p>0?'+':'')+p:'—'}</div>
+                    <div style={{fontFamily:"'Anton',sans-serif",fontSize:'2rem',color:colors.primary,lineHeight:1}}>{p?(p>0?'+':'')+p:'—'}</div>
                     {implied && <div style={{fontSize:'.65rem',color:'#5c6070',marginTop:'.2rem'}}>{implied}% implied</div>}
                     <div style={{fontSize:'.58rem',color:'#3a3f52',marginTop:'.2rem'}}>{best?.bookmaker??'FanDuel'}</div>
                   </div>
@@ -825,16 +826,16 @@ function BestBetPanel({ odds, colors, isPitcher }) {
             {/* Grade + recommendation */}
             <div style={{display:'flex',alignItems:'center',gap:'1rem',marginBottom:'1rem',flexWrap:'wrap'}}>
               <div style={{width:'60px',height:'60px',borderRadius:'50%',border:`2px solid ${gradeColor}`,display:'flex',alignItems:'center',justifyContent:'center',background:gradeColor+'12',flexShrink:0}}>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.grade}</span>
+                <span style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.grade}</span>
               </div>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginBottom:'.15rem'}}>BEST BET TODAY</div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',color:gradeColor,lineHeight:1}}>{bestBet.prop}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.3rem',color:gradeColor,lineHeight:1}}>{bestBet.prop}</div>
                 <div style={{fontSize:'.8rem',color:'#f0f2f8',marginTop:'.2rem',fontWeight:600}}>{bestBet.text}</div>
               </div>
               <div style={{marginLeft:'auto',textAlign:'right'}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',color:'#3a3f52',marginBottom:'.25rem'}}>CONFIDENCE</div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.confidence}%</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:gradeColor,lineHeight:1}}>{bestBet.confidence}%</div>
                 {/* Confidence bar */}
                 <div style={{width:'80px',height:'4px',background:'#1e2028',borderRadius:'2px',marginTop:'.3rem',overflow:'hidden'}}>
                   <div style={{width:`${bestBet.confidence}%`,height:'100%',background:gradeColor,borderRadius:'2px'}}/>
@@ -980,14 +981,14 @@ function PredPanel({ stat, isPitcher, colors, id }) {
                     strokeLinecap="round" style={{transition:'stroke-dashoffset 1.5s ease'}}/>
                 </svg>
                 <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,color:'#5c6070'}}>/ 100</div>
                 </div>
               </div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
             </div>
             <div style={{flex:1,minWidth:'180px'}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
               <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
               {matchup?.matchup && (
                 <div style={{marginTop:'.5rem',display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
@@ -1093,14 +1094,14 @@ function PredPanel({ stat, isPitcher, colors, id }) {
                     strokeLinecap="round" style={{transition:'stroke-dashoffset 1.5s ease'}}/>
                 </svg>
                 <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:'2rem',lineHeight:1,color:colors.primary}}>{score}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.65rem',fontWeight:700,color:'#5c6070'}}>/ 100</div>
                 </div>
               </div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'2.5rem',lineHeight:1,color:colors.accent,marginTop:'.25rem'}}>{grade}</div>
             </div>
             <div style={{flex:1,minWidth:'180px'}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
               <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
             </div>
           </div>
@@ -1160,7 +1161,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.2em',color:'#3a3f52',marginBottom:'.2rem'}}>
             TODAY'S MATCHUP
           </div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',color:'#f0f2f8',letterSpacing:'.05em'}}>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.2rem',color:'#f0f2f8',letterSpacing:'.05em'}}>
             {gameInfo.isHome ? 'vs' : '@'} {gameInfo.oppTeam}
           </div>
           <div style={{fontSize:'.75rem',color:'#5c6070',marginTop:'.1rem'}}>
@@ -1170,7 +1171,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
         <div style={{display:'flex', gap:'.5rem', alignItems:'center'}}>
           {/* Park factor badge */}
           <div style={{textAlign:'center',background:'#080c12',border:'1px solid #1e2028',borderRadius:'6px',padding:'.4rem .7rem'}}>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',color: gameInfo.parkFactor >= 1.05 ? '#2ed47a' : gameInfo.parkFactor <= 0.95 ? '#e63535' : '#b8bdd0'}}>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.1rem',color: gameInfo.parkFactor >= 1.05 ? '#2ed47a' : gameInfo.parkFactor <= 0.95 ? '#e63535' : '#b8bdd0'}}>
               {gameInfo.parkFactor?.toFixed(2) ?? '—'}
             </div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.1em',color:'#3a3f52'}}>PARK</div>
@@ -1206,7 +1207,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
                 ['W-L',  `${pitcher.wins}-${pitcher.losses}`],
               ].map(([lbl,val]) => (
                 <div key={lbl} style={{textAlign:'center'}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',color:colors.primary,lineHeight:1}}>{val ?? '—'}</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1rem',color:colors.primary,lineHeight:1}}>{val ?? '—'}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.1em',color:'#3a3f52'}}>{lbl}</div>
                 </div>
               ))}
@@ -1222,7 +1223,7 @@ function MatchupCard({ matchup, loading, colors, isPitcher }) {
                 ['Whiff%',     pitcher.savant.whiffPct?.toFixed(1),        '% whiff'],
               ].filter(([,v]) => v != null).map(([lbl,val,sub]) => (
                 <div key={lbl} style={{textAlign:'center'}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',color:'#b8bdd0',lineHeight:1}}>{val}</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1rem',color:'#b8bdd0',lineHeight:1}}>{val}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.58rem',fontWeight:700,letterSpacing:'.08em',color:'#3a3f52'}}>{lbl}</div>
                 </div>
               ))}
@@ -1416,7 +1417,7 @@ function HRLog({ hrLog, colors, player }) {
     <div>
       <div style={{...s.secLabel,color:colors.primary}}>
         Home Run Log — {hrLog.season ?? getCurrentSeason()}
-        <span style={{marginLeft:'1rem',fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',color:colors.accent}}>{hrs.length} HR</span>
+        <span style={{marginLeft:'1rem',fontFamily:"'Anton',sans-serif",fontSize:'1.4rem',color:colors.accent}}>{hrs.length} HR</span>
       </div>
 
       {hrs.length === 0 ? (
@@ -1428,7 +1429,7 @@ function HRLog({ hrLog, colors, player }) {
             {getHRSummary(hrs, colors).map((c,i)=>(
               <div key={i} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1rem',textAlign:'center'}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.6rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.3rem'}}>{c.label}</div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',color:c.color??colors.primary}}>{c.val}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.9rem',color:c.color??colors.primary}}>{c.val}</div>
                 {c.sub && <div style={{fontSize:'.68rem',color:'#5c6070',marginTop:'.1rem'}}>{c.sub}</div>}
               </div>
             ))}
@@ -2003,12 +2004,45 @@ function LinksGrid({ player, id, colors }) {
 // LOADING
 // ════════════════════════════════════════════════════════
 function LoadingScreen() {
+  const SK = ({ w='100%', h=16, r=6, mb=0 }) => (
+    <div style={{width:w,height:h,borderRadius:r,marginBottom:mb,
+      background:'linear-gradient(90deg,#0d1117 25%,#1a1f2e 50%,#0d1117 75%)',
+      backgroundSize:'600px 100%',animation:'shimmer 1.4s infinite linear',flexShrink:0}} />
+  );
   return (
-    <div style={{position:'fixed',inset:0,background:'#050608',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif"}}>
-      <div style={{fontSize:'2.8rem',letterSpacing:'.1em',color:'#f0f2f8'}}>COACH<span style={{color:'#00c2a8'}}>.</span></div>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',letterSpacing:'.22em',textTransform:'uppercase',color:'#5c6070',marginTop:'.4rem',marginBottom:'.9rem'}}>Loading Player Data</div>
-      <div style={{width:'180px',height:'2px',background:'#1e2028',borderRadius:'2px',overflow:'hidden'}}>
-        <div style={{height:'100%',background:'#00c2a8',animation:'loadbar 1.4s ease forwards',width:'0%'}}/>
+    <div style={{minHeight:'100vh',background:'#050608',padding:'0'}}>
+      {/* Nav skeleton */}
+      <div style={{height:'54px',background:'rgba(5,6,8,.96)',borderBottom:'1px solid #1e2028',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'2rem'}}>
+        <SK w={80} h={22} r={4} />
+        <div style={{marginLeft:'auto',display:'flex',gap:'1.5rem'}}>
+          {[60,70,50,90,60,55].map((w,i)=><SK key={i} w={w} h={12} r={3} />)}
+        </div>
+      </div>
+      {/* Hero skeleton */}
+      <div style={{height:'340px',background:'linear-gradient(160deg,#03080f,#061223)',position:'relative',overflow:'hidden',display:'flex',alignItems:'flex-end',padding:'0 1.5rem 1.5rem'}}>
+        <div style={{maxWidth:'1100px',margin:'0 auto',width:'100%',display:'flex',alignItems:'flex-end',gap:'1.5rem'}}>
+          <SK w={110} h={110} r={12} />
+          <div style={{flex:1}}>
+            <SK w={260} h={42} r={6} mb={10} />
+            <SK w={180} h={16} r={4} mb={8} />
+            <SK w={120} h={12} r={4} />
+          </div>
+        </div>
+      </div>
+      {/* Tabs skeleton */}
+      <div style={{maxWidth:'1100px',margin:'0 auto',padding:'1.5rem 1.5rem 0'}}>
+        <div style={{display:'flex',gap:'.5rem',marginBottom:'1.5rem'}}>
+          {[80,90,80,70,80,75,65,70].map((w,i)=><SK key={i} w={w} h={32} r={6} />)}
+        </div>
+        {/* Stat cards grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:'.75rem',marginBottom:'1.5rem'}}>
+          {Array.from({length:9}).map((_,i)=><SK key={i} h={72} r={8} />)}
+        </div>
+        {/* Two column content */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
+          <SK h={220} r={10} />
+          <SK h={220} r={10} />
+        </div>
       </div>
     </div>
   );
@@ -2133,20 +2167,20 @@ function getPitTiles(s, savantData) {
 // ─── STYLES ──────────────────────────────────────────────
 const s={
   nav:         {position:'sticky',top:0,zIndex:200,background:'rgba(3,8,15,.96)',backdropFilter:'blur(16px)',borderBottom:'1px solid #1e2028',height:'54px',display:'flex',alignItems:'center',padding:'0 1.5rem',gap:'1rem'},
-  navLogo:     {fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0},
+  navLogo:     {fontFamily:"'Anton',sans-serif",fontSize:'1.5rem',letterSpacing:'.08em',color:'#f0f2f8',textDecoration:'none',flexShrink:0},
   heroWrap:    {position:'relative',minHeight:'88vh',display:'flex',flexDirection:'column',justifyContent:'flex-end',overflow:'hidden',background:'#050608'},
   heroBgWrap:  {position:'absolute',inset:0,overflow:'hidden'},
   heroOverlay: {position:'absolute',inset:0,background:'linear-gradient(to top,rgba(5,6,8,1) 0%,rgba(5,6,8,.88) 28%,rgba(5,6,8,.45) 58%,rgba(5,6,8,.1) 100%),linear-gradient(to right,rgba(5,6,8,.7) 0%,rgba(5,6,8,.1) 55%,transparent 100%)',zIndex:1},
   heroTint:    {position:'absolute',inset:0,zIndex:1},
   heroContent: {position:'relative',zIndex:2,padding:'2.5rem 2rem 0',maxWidth:'1200px',width:'100%',margin:'0 auto'},
   eyebrow:     {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.78rem',fontWeight:700,letterSpacing:'.28em',textTransform:'uppercase',marginBottom:'.35rem'},
-  playerName:  {fontFamily:"'Bebas Neue',sans-serif",fontSize:'clamp(3.2rem,8vw,7.5rem)',lineHeight:.95,color:'#f0f2f8',letterSpacing:'.02em',textShadow:'0 4px 50px rgba(0,0,0,.9)'},
+  playerName:  {fontFamily:"'Anton',sans-serif",fontSize:'clamp(3.2rem,8vw,7.5rem)',lineHeight:.95,color:'#f0f2f8',letterSpacing:'.02em',textShadow:'0 4px 50px rgba(0,0,0,.9)'},
   badges:      {display:'flex',flexWrap:'wrap',alignItems:'center',gap:'.4rem .65rem',marginTop:'.7rem'},
   badge:       {padding:'.2rem .6rem',border:'1px solid rgba(255,255,255,.14)',borderRadius:'3px',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.13em',textTransform:'uppercase',color:'rgba(255,255,255,.5)'},
   statOverlay: {position:'relative',zIndex:2,padding:'1.4rem 2rem',background:'linear-gradient(to right,rgba(5,6,8,.96) 0%,rgba(5,6,8,.75) 65%,transparent 100%)',borderTop:'2px solid',display:'flex',flexWrap:'wrap'},
   statBlock:   {padding:'.5rem 2rem .5rem 0',borderRight:'1px solid rgba(255,255,255,.07)',marginRight:'2rem'},
   statLabel:   {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.15rem'},
-  statVal:     {fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.5rem',lineHeight:1},
+  statVal:     {fontFamily:"'Anton',sans-serif",fontSize:'2.5rem',lineHeight:1},
   savantStrip: {position:'relative',zIndex:2,borderTop:'1px solid',padding:'.85rem 2rem',display:'flex',flexWrap:'wrap',alignItems:'center',gap:'.75rem 2rem'},
   savantTitle: {fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.22em',textTransform:'uppercase',flexShrink:0},
   savantMets:  {display:'flex',flexWrap:'wrap',gap:'.4rem 1.4rem',flex:1},
@@ -2167,7 +2201,7 @@ const s={
   td:          {padding:'.58rem 1rem',textAlign:'right',color:'#b8bdd0',whiteSpace:'nowrap'},
   svTile:      {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.15rem 1rem .9rem',textAlign:'center',position:'relative'},
   svLabel:     {fontSize:'.6rem',letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.35rem'},
-  svVal:       {fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.4rem',lineHeight:1,color:'#f0f2f8'},
+  svVal:       {fontFamily:"'Anton',sans-serif",fontSize:'2.4rem',lineHeight:1,color:'#f0f2f8'},
   svSub:       {fontSize:'.68rem',color:'#5c6070',marginTop:'.18rem'},
   svBar:       {height:'3px',background:'#1e2028',borderRadius:'2px',marginTop:'.55rem',overflow:'hidden'},
   svBarFill:   {height:'100%',borderRadius:'2px',transition:'width 1s ease'},
@@ -2178,7 +2212,7 @@ const s={
   extLink:     {display:'flex',alignItems:'center',gap:'.72rem',padding:'.85rem 1rem',background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',textDecoration:'none',color:'#b8bdd0'},
   extIcon:     {width:'36px',height:'36px',borderRadius:'7px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.15rem',flexShrink:0,background:'#1e2028'},
   chartCard:   {background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'1.2rem',marginBottom:'2rem'},
-  searchInput: {width:'100%',padding:'.4rem .9rem',background:'rgba(255,255,255,.04)',border:'1px solid #1e2028',borderRadius:'5px',color:'#f0f2f8',fontFamily:"'Barlow',sans-serif",fontSize:'.88rem',outline:'none'},
+  searchInput: {width:'100%',padding:'.4rem .9rem',background:'rgba(255,255,255,.04)',border:'1px solid #1e2028',borderRadius:'5px',color:'#f0f2f8',fontFamily:"'Inter',sans-serif",fontSize:'.88rem',outline:'none'},
   searchDrop:  {position:'absolute',top:'calc(100% + 6px)',left:0,right:0,background:'#15171d',border:'1px solid #1e2028',borderRadius:'8px',maxHeight:'280px',overflowY:'auto',zIndex:300},
   searchItem:  {display:'flex',alignItems:'center',gap:'.7rem',padding:'.55rem 1rem',cursor:'pointer'},
   footer:      {borderTop:'1px solid #1e2028',padding:'1.4rem',textAlign:'center',fontSize:'.74rem',color:'#5c6070'},
