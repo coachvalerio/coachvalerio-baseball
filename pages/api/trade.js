@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (!teamA || !teamB) return res.status(400).json({ error: 'Missing trade details' });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set in environment variables. Add it to Vercel → Settings → Environment Variables.' });
 
   const isFantasy = mode === 'fantasy';
 
@@ -97,7 +97,7 @@ Respond ONLY with this exact JSON structure, no markdown, no preamble:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
@@ -106,7 +106,9 @@ Respond ONLY with this exact JSON structure, no markdown, no preamble:
 
     if (!response.ok) {
       const err = await response.text();
-      return res.status(500).json({ error: `Anthropic API error: ${response.status}`, detail: err.slice(0, 200) });
+      let detail = err.slice(0, 500);
+      try { detail = JSON.stringify(JSON.parse(err), null, 2).slice(0, 500); } catch {}
+      return res.status(500).json({ error: `Anthropic API error: ${response.status}`, detail });
     }
 
     const data = await response.json();
