@@ -73,6 +73,8 @@ export default function Scoreboard() {
     if (filter === 'live')     return g.isLive;
     if (filter === 'upcoming') return !g.isLive && !g.isFinal;
     if (filter === 'final')    return g.isFinal;
+    if (filter === 'spring')   return g.gameTypeLabel === 'Spring Training';
+    if (filter === 'wbc')      return g.gameTypeLabel === 'World Baseball Classic';
     return true;
   });
 
@@ -115,7 +117,7 @@ export default function Scoreboard() {
         </div>
         {/* Filter tabs */}
         <div style={s.filterRow}>
-          {[['all','All Games'],['live','🔴 Live'],['upcoming','Upcoming'],['final','Final']].map(([v, lbl]) => (
+          {[['all','All Games'],['live','🔴 Live'],['upcoming','Upcoming'],['final','Final'],['spring','⚾ Spring Training'],['wbc','🌍 WBC']].map(([v, lbl]) => (
             <button key={v} onClick={() => setFilter(v)}
               style={{ ...s.fBtn, ...(filter === v ? s.fBtnActive : {}) }}>
               {lbl}
@@ -143,7 +145,14 @@ export default function Scoreboard() {
               <div key={game.gamePk} className="game-card" style={s.card}>
                 {/* Status bar */}
                 <div style={{ ...s.statusBar, background: game.isLive ? 'rgba(46,212,122,.08)' : 'transparent', borderBottom: '1px solid #1e2028' }}>
-                  <span style={{ ...s.statusBadge, color: badge.color }}>{badge.text}</span>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'.1rem' }}>
+                    <span style={{ ...s.statusBadge, color: badge.color }}>{badge.text}</span>
+                    {game.gameTypeLabel && (
+                      <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.1em', color:'#8b74c4' }}>
+                        {game.gameTypeLabel.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                   <span style={s.venue}>{game.venue}</span>
                 </div>
 

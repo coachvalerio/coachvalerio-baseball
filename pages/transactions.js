@@ -32,6 +32,9 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
   const [filter, setFilter] = useState('all');
+  const [teamFilter, setTeamFilter] = useState('all');
+  const [teamSearch, setTeamSearch] = useState('');
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [expanded, setExpanded] = useState({});
 
   useEffect(() => {
@@ -42,9 +45,24 @@ export default function Transactions() {
       .catch(() => setLoading(false));
   }, [days]);
 
-  const displayed = filter === 'all'
-    ? transactions
-    : transactions.filter(t => t.typeDesc === filter);
+  const displayed = transactions.filter(t => {
+    const typeMatch = filter === 'all' || t.typeDesc === filter;
+    const teamMatch = teamFilter === 'all' || 
+      t.fromTeam === teamFilter || 
+      t.toTeam === teamFilter ||
+      t.person?.stats?.team === teamFilter;
+    return typeMatch && teamMatch;
+  });
+
+  // Build sorted unique team list from all transactions
+  const allTeams = [...new Set([
+    ...transactions.map(t => t.fromTeam).filter(Boolean),
+    ...transactions.map(t => t.toTeam).filter(Boolean),
+  ])].sort();
+
+  const filteredTeams = allTeams.filter(t =>
+    t.toLowerCase().includes(teamSearch.toLowerCase())
+  );
 
   const typeOptions = ['all', ...new Set(transactions.map(t => t.typeDesc))].filter(Boolean);
 
@@ -103,6 +121,57 @@ export default function Transactions() {
               </button>
             );
           })}
+        </div>
+
+        {/* Team filter */}
+        <div style={{ maxWidth:'1200px', margin:'.5rem auto 0', display:'flex', alignItems:'center', gap:'.75rem', flexWrap:'wrap' }}>
+          <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.15em', color:'#5c6070' }}>TEAM:</span>
+          <div style={{ position:'relative' }}>
+            <button
+              onClick={() => setShowTeamPicker(p => !p)}
+              style={{ ...s.fBtn, color: teamFilter !== 'all' ? '#00c2a8' : '#5c6070', borderColor: teamFilter !== 'all' ? '#00c2a8' : '#1e2028', minWidth:'180px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'.5rem' }}>
+              <span>{teamFilter === 'all' ? 'All Teams' : teamFilter}</span>
+              <span style={{ fontSize:'.6rem' }}>▼</span>
+            </button>
+            {showTeamPicker && (
+              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:200, background:'#111318', border:'1px solid #1e2028', borderRadius:'8px', width:'240px', maxHeight:'300px', overflow:'hidden', display:'flex', flexDirection:'column' }}>
+                <div style={{ padding:'.5rem' }}>
+                  <input
+                    style={{ width:'100%', padding:'.45rem .7rem', background:'rgba(255,255,255,.05)', border:'1px solid #1e2028', borderRadius:'5px', color:'#f0f2f8', fontFamily:"'Barlow',sans-serif", fontSize:'.82rem', outline:'none' }}
+                    placeholder="Search teams…"
+                    value={teamSearch}
+                    onChange={e => setTeamSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div style={{ overflowY:'auto', maxHeight:'240px' }}>
+                  <div
+                    onClick={() => { setTeamFilter('all'); setShowTeamPicker(false); setTeamSearch(''); }}
+                    style={{ padding:'.45rem .85rem', cursor:'pointer', fontSize:'.82rem', color: teamFilter === 'all' ? '#00c2a8' : '#b8bdd0', background: teamFilter === 'all' ? 'rgba(0,194,168,.08)' : 'transparent', fontWeight: teamFilter === 'all' ? 700 : 400 }}>
+                    All Teams
+                  </div>
+                  {filteredTeams.map(team => (
+                    <div key={team}
+                      onClick={() => { setTeamFilter(team); setShowTeamPicker(false); setTeamSearch(''); }}
+                      style={{ padding:'.42rem .85rem', cursor:'pointer', fontSize:'.8rem', color: teamFilter === team ? '#00c2a8' : '#b8bdd0', background: teamFilter === team ? 'rgba(0,194,168,.08)' : 'transparent', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#1e2028'}
+                      onMouseLeave={e => e.currentTarget.style.background = teamFilter === team ? 'rgba(0,194,168,.08)' : 'transparent'}>
+                      {team}
+                    </div>
+                  ))}
+                  {filteredTeams.length === 0 && (
+                    <div style={{ padding:'.65rem .85rem', color:'#3a3f52', fontSize:'.78rem' }}>No teams found</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          {teamFilter !== 'all' && (
+            <button onClick={() => setTeamFilter('all')}
+              style={{ background:'none', border:'none', color:'#e63535', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, cursor:'pointer', letterSpacing:'.08em' }}>
+              ✕ Clear Team
+            </button>
+          )}
         </div>
       </div>
 

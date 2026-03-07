@@ -48,14 +48,37 @@ export default async function handler(req, res) {
   const today = req.query.date ?? new Date().toISOString().slice(0, 10);
 
   try {
-    // 1. Fetch schedule
-    const schedRes = await fetch(
-      `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}` +
-      `&hydrate=team,linescore,probablePitcher(note),weather,broadcasts(all),game(content(media(epg)))` +
-      `&fields=dates,games,gamePk,gameDate,status,teams,linescore,probablePitcher,weather,venue`
-    );
-    const schedData = await schedRes.json();
-    const games = schedData.dates?.[0]?.games ?? [];
+    // 1. Fetch schedule — include all game types:
+    //    R=Regular, S=Spring Training, E=Exhibition, A=All-Star, W=WBC/World events
+    //    sportIds: 1=MLB, 51=WBC
+    const buildUrl = (sportId, gameType) =>
+      `https://statsapi.mlb.com/api/v1/schedule?sportId=${sportId}&date=${today}&gameType=${gameType}` +
+      `&hydrate=team,linescore,probablePitcher(note)` +
+      `&fields=dates,games,gamePk,gameDate,status,teams,linescore,probablePitcher,venue`;
+
+    const [mlbRes, stRes, wbcRes] = await Promise.all([
+      fetch(buildUrl(1, 'R')),    // Regular season
+      fetch(buildUrl(1, 'S')),    // Spring Training
+      fetch(buildUrl(51, 'R')),   // WBC / World events
+    ]);
+
+    const mlbData = await mlbRes.json();
+    const stData  = stRes.ok  ? await stRes.json()  : { dates: [] };
+    const wbcData = wbcRes.ok ? await wbcRes.json() : { dates: [] };
+
+    const allGames = [
+      ...(mlbData.dates?.[0]?.games ?? []),
+      ...(stData.dates?.[0]?.games  ?? []),
+      ...(wbcData.dates?.[0]?.games ?? []),
+    ];
+
+    // Deduplicate by gamePk
+    const seen = new Set();
+    const games = allGames.filter(g => {
+      if (seen.has(g.gamePk)) return false;
+      seen.add(g.gamePk);
+      return true;
+    });
 
     if (!games.length) return res.status(200).json({ games: [], date: today });
 
@@ -120,9 +143,18 @@ export default async function handler(req, res) {
         homeWinPct = homeScore > awayScore ? 100 : 0;
       }
 
+      const gameSport = g.sport?.id ?? 1;
+      const gameTypeCode = g.gameType ?? 'R';
+      const gameTypeLabel =
+        gameTypeCode === 'S' ? 'Spring Training' :
+        gameTypeCode === 'E' ? 'Exhibition' :
+        gameSport === 51    ? 'World Baseball Classic' :
+        '';
+
       return {
         gamePk:      g.gamePk,
         gameDate:    g.gameDate,
+        gameTypeLabel,
         status,
         isLive,
         isFinal,

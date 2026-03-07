@@ -104,9 +104,9 @@ function buildPlayerData(stats, savant) {
 }
 
 function usePlayerData(playerId) {
-  const [info, setInfo]     = useState(null);
-  const [stats, setStats]   = useState(null);
-  const [savant, setSavant] = useState(null);
+  const [info, setInfo]       = useState(null);
+  const [stats, setStats]     = useState(null);
+  const [savant, setSavant]   = useState(null);
   const [loading, setLoading] = useState(false);
   const SEASON = getCurrentSeason();
 
@@ -117,11 +117,12 @@ function usePlayerData(playerId) {
       fetch(`/api/player?id=${playerId}&season=${SEASON}`).then(r => r.json()).catch(() => null),
       fetch(`/api/savant?id=${playerId}`).then(r => r.json()).catch(() => null),
     ]).then(([playerData, savantData]) => {
-      setInfo(playerData?.info ?? null);
-      // find season stats
-      const splits = playerData?.stats;
-      const hitStat = splits?.find(s => s.group?.displayName === 'hitting')?.splits?.[0]?.stat;
-      const pitStat = splits?.find(s => s.group?.displayName === 'pitching')?.splits?.[0]?.stat;
+      // player API returns: { player, season: { hitting: [...], pitching: [...] } }
+      setInfo(playerData?.player ?? null);
+      const hitSplits = playerData?.season?.hitting ?? [];
+      const pitSplits = playerData?.season?.pitching ?? [];
+      const hitStat   = hitSplits[0]?.stat ?? null;
+      const pitStat   = pitSplits[0]?.stat ?? null;
       setStats(hitStat ?? pitStat ?? null);
       setSavant(savantData?.available ? savantData : null);
       setLoading(false);
@@ -233,11 +234,21 @@ function StatRow({ label, val1, val2, pct1, pct2, lowerIsBetter }) {
 }
 
 export default function Compare() {
-  const [id1, setId1] = useState(null);
-  const [id2, setId2] = useState(null);
+  const [id1, setId1]         = useState(null);
+  const [id2, setId2]         = useState(null);
+  const [activeId1, setActive1] = useState(null);
+  const [activeId2, setActive2] = useState(null);
+  const [compared, setCompared] = useState(false);
 
-  const p1 = usePlayerData(id1);
-  const p2 = usePlayerData(id2);
+  const p1 = usePlayerData(activeId1);
+  const p2 = usePlayerData(activeId2);
+
+  function runCompare() {
+    if (!id1 || !id2) return;
+    setActive1(id1);
+    setActive2(id2);
+    setCompared(true);
+  }
 
   const SEASON = getCurrentSeason();
   const color1 = p1.info ? tc(p1.info.currentTeam?.name ?? '') : '#00c2a8';
@@ -289,10 +300,22 @@ export default function Compare() {
           <div style={s.vsChip}>VS</div>
           <PlayerSearch label="PLAYER 2" color={color2} onSelect={setId2} selectedId={id2} />
         </div>
+        <div style={{ maxWidth:'1200px', margin:'.75rem auto 0', display:'flex', justifyContent:'center' }}>
+          <button
+            onClick={runCompare}
+            disabled={!id1 || !id2}
+            style={{
+              ...s.compareBtn,
+              opacity: (!id1 || !id2) ? 0.4 : 1,
+              cursor: (!id1 || !id2) ? 'not-allowed' : 'pointer',
+            }}>
+            ⚖️ COMPARE PLAYERS
+          </button>
+        </div>
       </div>
 
       <div style={s.body}>
-        {!id1 && !id2 && (
+        {!compared && (
           <div style={s.emptyState}>
             <div style={s.emptyIcon}>⚖️</div>
             <div style={s.emptyTitle}>Search two players to compare</div>
@@ -300,12 +323,12 @@ export default function Compare() {
           </div>
         )}
 
-        {(p1.loading || p2.loading) && (
+        {compared && (p1.loading || p2.loading) && (
           <div style={s.loading}>Loading player data…</div>
         )}
 
         {/* Player header cards */}
-        {hasData && !p1.loading && !p2.loading && (
+        {compared && hasData && !p1.loading && !p2.loading && (
           <>
             <div style={s.playerHeaders}>
               {/* Player 1 header */}
@@ -433,5 +456,6 @@ const s = {
   pctNum:       { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,whiteSpace:'nowrap' },
   profileLinks: { display:'flex',gap:'1rem',justifyContent:'center',marginTop:'1.5rem',flexWrap:'wrap' },
   profileLink:  { fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.82rem',fontWeight:700,letterSpacing:'.1em',border:'1px solid',borderRadius:'6px',padding:'.5rem 1.25rem',textDecoration:'none',transition:'all .2s' },
+  compareBtn:   { marginTop:'1rem', display:'block', width:'100%', maxWidth:'360px', padding:'.75rem 2rem', background:'linear-gradient(135deg,#00c2a8,#0097a7)', border:'none', borderRadius:'8px', fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.15rem', letterSpacing:'.15em', color:'#050608', transition:'all .2s' },
   footer:       { borderTop:'1px solid #1e2028',padding:'1.4rem',textAlign:'center',fontSize:'.74rem',color:'#5c6070' },
 };
