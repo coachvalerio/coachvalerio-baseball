@@ -58,6 +58,7 @@ function SplitRow({ label, rec }) {
 export default function TeamPage() {
   const router  = useRouter();
   const { id }  = router.query;
+  const isReady = router.isReady;
   const SEASON  = getCurrentSeason();
 
   const [data, setData]       = useState(null);
@@ -68,13 +69,13 @@ export default function TeamPage() {
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
-    if (!id) return;
+    if (!isReady || !id) return;
     setLoading(true);
     fetch(`/api/team?id=${id}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [id]);
+      .catch(err => { setData({ error: err.message }); setLoading(false); });
+  }, [isReady, id]);
 
   if (loading) return (
     <div style={{ background:'#050608', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#5c6070', fontFamily:"'Barlow',sans-serif" }}>
