@@ -142,7 +142,8 @@ export default function Scoreboard() {
             const awayLead  = game.away.score > game.home.score;
 
             return (
-              <div key={game.gamePk} className="game-card" style={s.card}>
+              <div key={game.gamePk} className="game-card" style={{ ...s.card, cursor:'pointer' }}
+                onClick={() => router.push(`/games/${game.gamePk}`)}>
                 {/* Status bar */}
                 <div style={{ ...s.statusBar, background: game.isLive ? 'rgba(46,212,122,.08)' : 'transparent', borderBottom: '1px solid #1e2028' }}>
                   <div style={{ display:'flex', flexDirection:'column', gap:'.1rem' }}>
