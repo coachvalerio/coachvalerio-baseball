@@ -14,34 +14,56 @@ const TEAM_COLORS = {
   109:'#A71930',115:'#8B74C4',119:'#005A9C',135:'#FFC425',137:'#FD5A1E',
 };
 
-// Stadium backdrop images — keyed by venue name (partial match)
-// Using high-quality Unsplash + public domain stadium photos
-const STADIUM_BACKDROPS = {
-  'Yankee':     'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1400&q=80',
-  'Fenway':     'https://images.unsplash.com/photo-1508098682722-e99c643e7f0b?w=1400&q=80',
-  'Wrigley':    'https://images.unsplash.com/photo-1529768167801-9173d94c2a42?w=1400&q=80',
-  'Dodger':     'https://images.unsplash.com/photo-1562077772-3bd90403f7f0?w=1400&q=80',
-  'Oracle':     'https://images.unsplash.com/photo-1522778526097-ce0a22ceb253?w=1400&q=80',
-  'Camden':     'https://images.unsplash.com/photo-1590239926044-4131cadd4f29?w=1400&q=80',
-  'Busch':      'https://images.unsplash.com/photo-1562077952-c8c8562007fe?w=1400&q=80',
-  'Minute Maid':'https://images.unsplash.com/photo-1567593810070-7a3d471af022?w=1400&q=80',
-  'Citizens':   'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=1400&q=80',
-  'T-Mobile':   'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=1400&q=80',
-  'Truist':     'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=1400&q=80',
-  'PNC':        'https://images.unsplash.com/photo-1566577741050-5c24c41826e4?w=1400&q=80',
-  'Globe Life': 'https://images.unsplash.com/photo-1562077951-2f8a86e40053?w=1400&q=80',
-  'Citi Field': 'https://images.unsplash.com/photo-1557318041-1ce374d55ebf?w=1400&q=80',
-  'Great American':'https://images.unsplash.com/photo-1508098682722-e99c643e7f0b?w=1400&q=80',
-  // Default fallback — generic baseball stadium
-  'default':    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80',
+// Stadium images keyed by MLB home team ID — Wikipedia Commons / public sources
+const STADIUM_BY_TEAM = {
+  // AL East
+  147: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Yankee_Stadium_2010.jpg/1200px-Yankee_Stadium_2010.jpg',           // Yankees - Yankee Stadium
+  111: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Fenway_from_legend%27s_box.jpg/1200px-Fenway_from_legend%27s_box.jpg', // Red Sox - Fenway Park
+  141: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/sixty/Rogers_Centre_-_June_2016.jpg/1200px-Rogers_Centre_-_June_2016.jpg', // Blue Jays - Rogers Centre
+  110: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Oriole_Park_at_Camden_Yards.jpg/1200px-Oriole_Park_at_Camden_Yards.jpg', // Orioles - Camden Yards
+  139: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Tropicana_Field_-_St._Petersburg%2C_Florida.jpg/1200px-Tropicana_Field_-_St._Petersburg%2C_Florida.jpg', // Rays
+
+  // AL Central
+  145: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Guaranteed_Rate_Field_-_July_2016.jpg/1200px-Guaranteed_Rate_Field_-_July_2016.jpg', // White Sox
+  114: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Progressive_Field_2019.jpg/1200px-Progressive_Field_2019.jpg',          // Guardians
+  116: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Comerica_Park%2C_Detroit%2C_2013.jpg/1200px-Comerica_Park%2C_Detroit%2C_2013.jpg', // Tigers
+  118: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Kauffman_Stadium_from_RF_corner.jpg/1200px-Kauffman_Stadium_from_RF_corner.jpg', // Royals
+  142: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Target_Field_-_Minnesota_Twins.jpg/1200px-Target_Field_-_Minnesota_Twins.jpg', // Twins
+
+  // AL West
+  117: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Minute_Maid_Park_-_July_2012.jpg/1200px-Minute_Maid_Park_-_July_2012.jpg', // Astros
+  108: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Angel_Stadium_aerial.jpg/1200px-Angel_Stadium_aerial.jpg',              // Angels
+  133: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Oakland_Coliseum_2013.jpg/1200px-Oakland_Coliseum_2013.jpg',            // Athletics
+  136: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/T-Mobile_Park_-_August_2021.jpg/1200px-T-Mobile_Park_-_August_2021.jpg', // Mariners
+  140: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Globe_Life_Field_in_Arlington.jpg/1200px-Globe_Life_Field_in_Arlington.jpg', // Rangers
+
+  // NL East
+  144: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Truist_Park_2021.jpg/1200px-Truist_Park_2021.jpg',                      // Braves
+  146: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/LoanDepot_park_aerial_2021.jpg/1200px-LoanDepot_park_aerial_2021.jpg',  // Marlins
+  121: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Citi_Field_-_Opening_Day_2012.jpg/1200px-Citi_Field_-_Opening_Day_2012.jpg', // Mets
+  143: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Citizens_Bank_Park_aerial.jpg/1200px-Citizens_Bank_Park_aerial.jpg',    // Phillies
+  120: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Nationals_Park_July_4%2C_2009.jpg/1200px-Nationals_Park_July_4%2C_2009.jpg', // Nationals
+
+  // NL Central
+  112: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Wrigley_Field_before_2016_NLCS.jpg/1200px-Wrigley_Field_before_2016_NLCS.jpg', // Cubs
+  113: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Great_American_Ball_Park_2014.jpg/1200px-Great_American_Ball_Park_2014.jpg', // Reds
+  158: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/American_Family_Field_2021.jpg/1200px-American_Family_Field_2021.jpg',   // Brewers
+  134: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/PNC_Park_2013.jpg/1200px-PNC_Park_2013.jpg',                           // Pirates
+  138: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Busch_Stadium_2019.jpg/1200px-Busch_Stadium_2019.jpg',                  // Cardinals
+
+  // NL West
+  109: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Chase_Field_-_Arizona_Diamondbacks.jpg/1200px-Chase_Field_-_Arizona_Diamondbacks.jpg', // D-backs
+  115: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Coors_Field_2017.jpg/1200px-Coors_Field_2017.jpg',                     // Rockies
+  119: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Dodger_Stadium_2020_NLCS.jpg/1200px-Dodger_Stadium_2020_NLCS.jpg',     // Dodgers
+  135: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Petco_Park_-_June_2021.jpg/1200px-Petco_Park_-_June_2021.jpg',         // Padres
+  137: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Oracle_Park_2019.jpg/1200px-Oracle_Park_2019.jpg',                     // Giants
 };
 
-function getStadiumBg(venueName) {
-  if (!venueName) return STADIUM_BACKDROPS.default;
-  for (const [key, url] of Object.entries(STADIUM_BACKDROPS)) {
-    if (key !== 'default' && venueName.toLowerCase().includes(key.toLowerCase())) return url;
-  }
-  return STADIUM_BACKDROPS.default;
+// Fallback: generic beautiful baseball stadium
+const STADIUM_DEFAULT = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/PNC_Park_2013.jpg/1200px-PNC_Park_2013.jpg';
+
+function getStadiumBg(homeTeamId) {
+  return STADIUM_BY_TEAM[homeTeamId] ?? STADIUM_DEFAULT;
 }
 
 const PITCH_COLORS = {
@@ -267,9 +289,9 @@ export default function GamePage() {
       {/* SCORE HEADER — stadium backdrop */}
       <div style={{
         ...s.header,
-        backgroundImage: `linear-gradient(to bottom, rgba(5,6,8,.55) 0%, rgba(5,6,8,.82) 60%, #050608 100%), url(${getStadiumBg(gameInfo.venue)})`,
+        backgroundImage: `linear-gradient(to bottom, rgba(3,8,15,.45) 0%, rgba(3,8,15,.75) 55%, #03080f 100%), url(${getStadiumBg(gameInfo.home.id)})`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center 30%',
+        backgroundPosition: 'center 35%',
       }}>
         {/* Breadcrumb */}
         <div style={{ maxWidth:'960px', margin:'0 auto', padding:'0 1.5rem' }}>
