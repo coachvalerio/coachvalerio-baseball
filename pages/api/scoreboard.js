@@ -48,27 +48,30 @@ export default async function handler(req, res) {
   const today = req.query.date ?? new Date().toISOString().slice(0, 10);
 
   try {
-    // 1. Fetch schedule — include all game types:
-    //    R=Regular, S=Spring Training, E=Exhibition, A=All-Star, W=WBC/World events
-    //    sportIds: 1=MLB, 51=WBC
-    const buildUrl = (sportId, gameType) =>
-      `https://statsapi.mlb.com/api/v1/schedule?sportId=${sportId}&date=${today}&gameType=${gameType}` +
-      `&hydrate=team,linescore,probablePitcher(note)` +
-      `&fields=dates,games,gamePk,gameDate,status,teams,linescore,probablePitcher,venue`;
+    // 1. Fetch schedule — NO gameType filter so we get ALL types:
+    //    R=Regular Season, S=Spring Training, E=Exhibition, W=WBC/World Classic
+    //    Two parallel fetches: sportId=1 (MLB/Spring Training) + sportId=51 (WBC)
+    //    CRITICAL: gameType must be in fields= or it comes back undefined
+    const baseFields = 'dates,games,gamePk,gameDate,gameType,status,teams,linescore,probablePitcher,venue,sport';
 
-    const [mlbRes, stRes, wbcRes] = await Promise.all([
-      fetch(buildUrl(1, 'R')),    // Regular season
-      fetch(buildUrl(1, 'S')),    // Spring Training
-      fetch(buildUrl(51, 'R')),   // WBC / World events
+    const [mlbRes, wbcRes] = await Promise.all([
+      fetch(
+        `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}` +
+        `&hydrate=team,linescore,probablePitcher(note)` +
+        `&fields=${baseFields}`
+      ),
+      fetch(
+        `https://statsapi.mlb.com/api/v1/schedule?sportId=51&date=${today}` +
+        `&hydrate=team,linescore,probablePitcher(note)` +
+        `&fields=${baseFields}`
+      ),
     ]);
 
     const mlbData = await mlbRes.json();
-    const stData  = stRes.ok  ? await stRes.json()  : { dates: [] };
     const wbcData = wbcRes.ok ? await wbcRes.json() : { dates: [] };
 
     const allGames = [
       ...(mlbData.dates?.[0]?.games ?? []),
-      ...(stData.dates?.[0]?.games  ?? []),
       ...(wbcData.dates?.[0]?.games ?? []),
     ];
 
@@ -143,12 +146,16 @@ export default async function handler(req, res) {
         homeWinPct = homeScore > awayScore ? 100 : 0;
       }
 
-      const gameSport = g.sport?.id ?? 1;
-      const gameTypeCode = g.gameType ?? 'R';
+      // gameType is now included in fields so this will be populated
+      // S=Spring Training, E=Exhibition, R=Regular, W=World Classic/WBC
+      const gameTypeCode  = g.gameType ?? 'R';
+      const sportId       = g.sport?.id ?? 1;
       const gameTypeLabel =
-        gameTypeCode === 'S' ? 'Spring Training' :
-        gameTypeCode === 'E' ? 'Exhibition' :
-        gameSport === 51    ? 'World Baseball Classic' :
+        gameTypeCode === 'S'           ? 'Spring Training' :
+        gameTypeCode === 'E'           ? 'Exhibition' :
+        gameTypeCode === 'W'           ? 'World Baseball Classic' :
+        sportId === 51                 ? 'World Baseball Classic' :
+        gameTypeCode !== 'R'           ? gameTypeCode :
         '';
 
       return {
