@@ -715,39 +715,50 @@ function PredPanel({ stat, isPitcher, colors, careerRows }) {
 // HIGHLIGHTS TAB
 // ════════════════════════════════════════════════════════
 function HighlightsTab({ id, player, highlights, colors }) {
-  const [ytKey, setYtKey] = useState('');
-  const [ytResults, setYtResults] = useState([]);
-  const [ytLoading, setYtLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
-  const mlbVids = highlights?.mlb ?? [];
+  const mlbVids  = highlights?.mlb     ?? [];
+  const ytVideos = highlights?.youtube  ?? [];
+  const hasYT    = highlights?.youtubeReady ?? false;
 
-  // YouTube search via API (requires key)
-  async function searchYT() {
-    if (!ytKey || ytKey.length < 10) return;
-    setYtLoading(true);
-    try {
-      const q = encodeURIComponent(`${player.fullName} MLB highlights 2025`);
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&maxResults=6&key=${ytKey}`);
-      const d = await r.json();
-      setYtResults(d.items ?? []);
-    } catch {}
-    setYtLoading(false);
-  }
+  const openVideo = (v) => setSelectedVideo(v);
 
   return (
     <div>
       <div style={{...hts.secLabel, color:colors.primary}}>🎬 Recent Highlights</div>
 
+      {/* YouTube Highlights — auto-loaded, shown first since more reliable */}
+      {hasYT && (
+        <>
+          <div style={hts.subLabel}>▶ YouTube Highlights</div>
+          <div style={hts.videoGrid}>
+            {ytVideos.map((v,i) => (
+              <div key={i} style={hts.videoCard} onClick={() => openVideo(v)}>
+                <div style={hts.thumbWrap}>
+                  <img src={v.thumb} alt={v.title} style={hts.thumb}
+                    onError={e => e.target.style.display='none'} />
+                  <div style={hts.playBtn}>▶</div>
+                </div>
+                <div style={hts.videoTitle}>{v.title}</div>
+                <div style={{...hts.videoDate, display:'flex', justifyContent:'space-between'}}>
+                  <span>{v.date}</span>
+                  <span style={{color:'#3a3f52'}}>{v.channelName}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* MLB Official Highlights */}
       {mlbVids.length > 0 && (
         <>
-          <div style={hts.subLabel}>MLB.com Official Highlights</div>
+          <div style={{...hts.subLabel, marginTop: hasYT ? '2rem' : 0}}>⚾ MLB.com Official Highlights</div>
           <div style={hts.videoGrid}>
             {mlbVids.map((v,i) => (
-              <div key={i} style={hts.videoCard} onClick={()=>setSelectedVideo(v)}>
+              <div key={i} style={hts.videoCard} onClick={() => openVideo(v)}>
                 <div style={hts.thumbWrap}>
                   <img src={v.thumb} alt={v.title} style={hts.thumb}
-                    onError={e=>e.target.style.display='none'}/>
+                    onError={e => e.target.style.display='none'} />
                   <div style={hts.playBtn}>▶</div>
                   {v.duration && <div style={hts.duration}>{v.duration}</div>}
                 </div>
@@ -759,45 +770,46 @@ function HighlightsTab({ id, player, highlights, colors }) {
         </>
       )}
 
-      {/* Video modal */}
-      {selectedVideo && (
-        <div style={hts.modal} onClick={()=>setSelectedVideo(null)}>
-          <div style={hts.modalInner} onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.75rem'}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',color:'#f0f2f8',flex:1}}>{selectedVideo.title}</div>
-              <button onClick={()=>setSelectedVideo(null)} style={{background:'none',border:'none',color:'#5c6070',fontSize:'1.4rem',cursor:'pointer',flexShrink:0,marginLeft:'1rem'}}>✕</button>
-            </div>
-            {selectedVideo.youtubeId ? (
-              <iframe width="100%" height="400" src={`https://www.youtube.com/embed/${selectedVideo.youtubeId}?autoplay=1`}
-                frameBorder="0" allow="autoplay; fullscreen" allowFullScreen style={{borderRadius:'8px'}}/>
-            ) : (
-              <video controls autoPlay style={{width:'100%',borderRadius:'8px',maxHeight:'420px'}} src={selectedVideo.url}>
-                <a href={selectedVideo.url} target="_blank" rel="noopener" style={{color:colors.primary}}>Watch on MLB.com →</a>
-              </video>
-            )}
-            <a href={selectedVideo.mlbUrl ?? selectedVideo.url} target="_blank" rel="noopener"
-              style={{display:'block',marginTop:'.75rem',fontSize:'.78rem',color:colors.primary,textAlign:'center'}}>
-              Open on MLB.com →
-            </a>
-          </div>
+      {!hasYT && mlbVids.length === 0 && (
+        <div style={{color:'#5c6070', padding:'2rem 0', textAlign:'center', fontSize:'.88rem'}}>
+          No highlights found yet for this player this season.
         </div>
       )}
 
-      {/* YouTube section */}
-      <div style={{...hts.subLabel, marginTop:'2rem'}}>YouTube Highlights</div>
-      {ytResults.length > 0 && (
-        <div style={hts.videoGrid}>
-          {ytResults.map((v,i) => (
-            <div key={i} style={hts.videoCard}
-              onClick={()=>setSelectedVideo({title:v.snippet.title, youtubeId:v.id.videoId, thumb:v.snippet.thumbnails?.medium?.url})}>
-              <div style={hts.thumbWrap}>
-                <img src={v.snippet.thumbnails?.medium?.url} alt={v.snippet.title} style={hts.thumb}/>
-                <div style={hts.playBtn}>▶</div>
-              </div>
-              <div style={hts.videoTitle}>{v.snippet.title}</div>
-              <div style={hts.videoDate}>{new Date(v.snippet.publishedAt).toLocaleDateString()}</div>
+      {/* Video modal */}
+      {selectedVideo && (
+        <div style={hts.modal} onClick={() => setSelectedVideo(null)}>
+          <div style={hts.modalInner} onClick={e => e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.75rem'}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:'.9rem',color:'#f0f2f8',flex:1,paddingRight:'1rem'}}>{selectedVideo.title}</div>
+              <button onClick={() => setSelectedVideo(null)} style={{background:'none',border:'none',color:'#5c6070',fontSize:'1.4rem',cursor:'pointer',flexShrink:0}}>✕</button>
             </div>
-          ))}
+            {selectedVideo.youtubeId ? (
+              <iframe width="100%" height="420"
+                src={`https://www.youtube.com/embed/${selectedVideo.youtubeId}?autoplay=1`}
+                frameBorder="0" allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen style={{borderRadius:'8px'}} />
+            ) : (
+              <video controls autoPlay style={{width:'100%',borderRadius:'8px',maxHeight:'420px'}} src={selectedVideo.url}>
+                <a href={selectedVideo.mlbUrl} target="_blank" rel="noopener" style={{color:colors.primary}}>Watch on MLB.com →</a>
+              </video>
+            )}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'.75rem'}}>
+              {selectedVideo.youtubeId ? (
+                <a href={`https://www.youtube.com/watch?v=${selectedVideo.youtubeId}`}
+                  target="_blank" rel="noopener"
+                  style={{fontSize:'.78rem',color:'#e63535'}}>▶ Open on YouTube →</a>
+              ) : (
+                <a href={selectedVideo.mlbUrl ?? selectedVideo.url}
+                  target="_blank" rel="noopener"
+                  style={{fontSize:'.78rem',color:colors.primary}}>Open on MLB.com →</a>
+              )}
+              <button onClick={() => setSelectedVideo(null)}
+                style={{background:'none',border:'1px solid #1e2028',borderRadius:'4px',color:'#5c6070',padding:'.3rem .75rem',cursor:'pointer',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.75rem',letterSpacing:'.08em'}}>
+                CLOSE
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
