@@ -223,7 +223,7 @@ export default function TradePage() {
               </div>
               <PlayerInput
                 value={teamAGets} onChange={setTeamAGets} color={colorA}
-                placeholder={`List players, prospects, picks that Team A receives...\n\nExamples:\n• Juan Soto (OF, 26, $31M/yr, 2 yrs)\n• Dylan Crews (Top prospect, 23)\n• 2026 1st round pick`}
+                placeholder={`Type any players, prospects, or picks...\n\nExamples:\n• Bryce Harper (1B/OF, 32, $27M/yr)\n• Dylan Crews (Top prospect)\n• 2026 1st round pick\n\nNo dropdown — just type freely!`}
               />
             </div>
 
@@ -244,7 +244,7 @@ export default function TradePage() {
               </div>
               <PlayerInput
                 value={teamBGets} onChange={setTeamBGets} color={colorB}
-                placeholder={`List players, prospects, picks that Team B receives...\n\nExamples:\n• Paul Skenes (SP, 22, pre-arb)\n• 2025 1st round pick\n• Cash considerations`}
+                placeholder={`Type any players, prospects, or picks...\n\nExamples:\n• Aaron Judge (OF, 33, $40M/yr)\n• 2025 1st round pick\n• Cash considerations\n\nNo dropdown — just type freely!`}
               />
             </div>
           </div>
