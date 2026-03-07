@@ -6,11 +6,13 @@
 // Sprint speed and OAA come from their own separate endpoints.
 
 export default async function handler(req, res) {
-  const { id } = req.query;
+  const { id, year: yearParam } = req.query;
   if (!id) return res.status(400).json({ error: 'Missing player id' });
 
-  const year  = new Date().getFullYear();
-  const years = [year, year - 1];
+  const currentYear = new Date().getFullYear();
+  // If year explicitly requested, try only that year. Otherwise try current + last.
+  const requestedYear = yearParam ? parseInt(yearParam) : null;
+  const years = requestedYear ? [requestedYear] : [currentYear, currentYear - 1];
 
   for (const yr of years) {
     for (const type of ['batter', 'pitcher']) {

@@ -14,56 +14,43 @@ const TEAM_COLORS = {
   109:'#A71930',115:'#8B74C4',119:'#005A9C',135:'#FFC425',137:'#FD5A1E',
 };
 
-// Stadium images keyed by MLB home team ID — Wikipedia Commons / public sources
+// Stadium images by home team ID — using ESPN CDN which is publicly accessible
+// Falls back to a team-color gradient if image fails
 const STADIUM_BY_TEAM = {
-  // AL East
-  147: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Yankee_Stadium_2010.jpg/1200px-Yankee_Stadium_2010.jpg',           // Yankees - Yankee Stadium
-  111: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Fenway_from_legend%27s_box.jpg/1200px-Fenway_from_legend%27s_box.jpg', // Red Sox - Fenway Park
-  141: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/sixty/Rogers_Centre_-_June_2016.jpg/1200px-Rogers_Centre_-_June_2016.jpg', // Blue Jays - Rogers Centre
-  110: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Oriole_Park_at_Camden_Yards.jpg/1200px-Oriole_Park_at_Camden_Yards.jpg', // Orioles - Camden Yards
-  139: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Tropicana_Field_-_St._Petersburg%2C_Florida.jpg/1200px-Tropicana_Field_-_St._Petersburg%2C_Florida.jpg', // Rays
-
-  // AL Central
-  145: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Guaranteed_Rate_Field_-_July_2016.jpg/1200px-Guaranteed_Rate_Field_-_July_2016.jpg', // White Sox
-  114: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Progressive_Field_2019.jpg/1200px-Progressive_Field_2019.jpg',          // Guardians
-  116: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Comerica_Park%2C_Detroit%2C_2013.jpg/1200px-Comerica_Park%2C_Detroit%2C_2013.jpg', // Tigers
-  118: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Kauffman_Stadium_from_RF_corner.jpg/1200px-Kauffman_Stadium_from_RF_corner.jpg', // Royals
-  142: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Target_Field_-_Minnesota_Twins.jpg/1200px-Target_Field_-_Minnesota_Twins.jpg', // Twins
-
-  // AL West
-  117: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Minute_Maid_Park_-_July_2012.jpg/1200px-Minute_Maid_Park_-_July_2012.jpg', // Astros
-  108: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Angel_Stadium_aerial.jpg/1200px-Angel_Stadium_aerial.jpg',              // Angels
-  133: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Oakland_Coliseum_2013.jpg/1200px-Oakland_Coliseum_2013.jpg',            // Athletics
-  136: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/T-Mobile_Park_-_August_2021.jpg/1200px-T-Mobile_Park_-_August_2021.jpg', // Mariners
-  140: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Globe_Life_Field_in_Arlington.jpg/1200px-Globe_Life_Field_in_Arlington.jpg', // Rangers
-
-  // NL East
-  144: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Truist_Park_2021.jpg/1200px-Truist_Park_2021.jpg',                      // Braves
-  146: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/LoanDepot_park_aerial_2021.jpg/1200px-LoanDepot_park_aerial_2021.jpg',  // Marlins
-  121: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Citi_Field_-_Opening_Day_2012.jpg/1200px-Citi_Field_-_Opening_Day_2012.jpg', // Mets
-  143: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Citizens_Bank_Park_aerial.jpg/1200px-Citizens_Bank_Park_aerial.jpg',    // Phillies
-  120: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Nationals_Park_July_4%2C_2009.jpg/1200px-Nationals_Park_July_4%2C_2009.jpg', // Nationals
-
-  // NL Central
-  112: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Wrigley_Field_before_2016_NLCS.jpg/1200px-Wrigley_Field_before_2016_NLCS.jpg', // Cubs
-  113: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Great_American_Ball_Park_2014.jpg/1200px-Great_American_Ball_Park_2014.jpg', // Reds
-  158: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/American_Family_Field_2021.jpg/1200px-American_Family_Field_2021.jpg',   // Brewers
-  134: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/PNC_Park_2013.jpg/1200px-PNC_Park_2013.jpg',                           // Pirates
-  138: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Busch_Stadium_2019.jpg/1200px-Busch_Stadium_2019.jpg',                  // Cardinals
-
-  // NL West
-  109: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Chase_Field_-_Arizona_Diamondbacks.jpg/1200px-Chase_Field_-_Arizona_Diamondbacks.jpg', // D-backs
-  115: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Coors_Field_2017.jpg/1200px-Coors_Field_2017.jpg',                     // Rockies
-  119: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Dodger_Stadium_2020_NLCS.jpg/1200px-Dodger_Stadium_2020_NLCS.jpg',     // Dodgers
-  135: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Petco_Park_-_June_2021.jpg/1200px-Petco_Park_-_June_2021.jpg',         // Padres
-  137: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Oracle_Park_2019.jpg/1200px-Oracle_Park_2019.jpg',                     // Giants
+  110: 'https://a.espncdn.com/i/venues/mlb/day/1.jpg',  // Orioles - Camden Yards
+  111: 'https://a.espncdn.com/i/venues/mlb/day/2.jpg',  // Red Sox - Fenway
+  147: 'https://a.espncdn.com/i/venues/mlb/day/3.jpg',  // Yankees - Yankee Stadium
+  139: 'https://a.espncdn.com/i/venues/mlb/day/4.jpg',  // Rays - Tropicana
+  141: 'https://a.espncdn.com/i/venues/mlb/day/5.jpg',  // Blue Jays - Rogers
+  145: 'https://a.espncdn.com/i/venues/mlb/day/6.jpg',  // White Sox
+  114: 'https://a.espncdn.com/i/venues/mlb/day/7.jpg',  // Guardians
+  116: 'https://a.espncdn.com/i/venues/mlb/day/8.jpg',  // Tigers - Comerica
+  118: 'https://a.espncdn.com/i/venues/mlb/day/9.jpg',  // Royals - Kauffman
+  142: 'https://a.espncdn.com/i/venues/mlb/day/10.jpg', // Twins - Target Field
+  117: 'https://a.espncdn.com/i/venues/mlb/day/11.jpg', // Astros - Minute Maid
+  108: 'https://a.espncdn.com/i/venues/mlb/day/12.jpg', // Angels
+  133: 'https://a.espncdn.com/i/venues/mlb/day/13.jpg', // Athletics
+  136: 'https://a.espncdn.com/i/venues/mlb/day/14.jpg', // Mariners - T-Mobile
+  140: 'https://a.espncdn.com/i/venues/mlb/day/15.jpg', // Rangers - Globe Life
+  144: 'https://a.espncdn.com/i/venues/mlb/day/16.jpg', // Braves - Truist
+  146: 'https://a.espncdn.com/i/venues/mlb/day/17.jpg', // Marlins - loanDepot
+  121: 'https://a.espncdn.com/i/venues/mlb/day/18.jpg', // Mets - Citi Field
+  143: 'https://a.espncdn.com/i/venues/mlb/day/19.jpg', // Phillies - Citizens Bank
+  120: 'https://a.espncdn.com/i/venues/mlb/day/20.jpg', // Nationals Park
+  112: 'https://a.espncdn.com/i/venues/mlb/day/21.jpg', // Cubs - Wrigley
+  113: 'https://a.espncdn.com/i/venues/mlb/day/22.jpg', // Reds - GABP
+  158: 'https://a.espncdn.com/i/venues/mlb/day/23.jpg', // Brewers
+  134: 'https://a.espncdn.com/i/venues/mlb/day/24.jpg', // Pirates - PNC
+  138: 'https://a.espncdn.com/i/venues/mlb/day/25.jpg', // Cardinals - Busch
+  109: 'https://a.espncdn.com/i/venues/mlb/day/26.jpg', // D-backs - Chase Field
+  115: 'https://a.espncdn.com/i/venues/mlb/day/27.jpg', // Rockies - Coors Field
+  119: 'https://a.espncdn.com/i/venues/mlb/day/28.jpg', // Dodgers - Dodger Stadium
+  135: 'https://a.espncdn.com/i/venues/mlb/day/29.jpg', // Padres - Petco
+  137: 'https://a.espncdn.com/i/venues/mlb/day/30.jpg', // Giants - Oracle Park
 };
 
-// Fallback: generic beautiful baseball stadium
-const STADIUM_DEFAULT = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/PNC_Park_2013.jpg/1200px-PNC_Park_2013.jpg';
-
 function getStadiumBg(homeTeamId) {
-  return STADIUM_BY_TEAM[homeTeamId] ?? STADIUM_DEFAULT;
+  return STADIUM_BY_TEAM[homeTeamId] ?? null;
 }
 
 const PITCH_COLORS = {
@@ -287,14 +274,21 @@ export default function GamePage() {
       </nav>
 
       {/* SCORE HEADER — stadium backdrop */}
-      <div style={{
-        ...s.header,
-        backgroundImage: `linear-gradient(to bottom, rgba(3,8,15,.45) 0%, rgba(3,8,15,.75) 55%, #03080f 100%), url(${getStadiumBg(gameInfo.home.id)})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center 35%',
-      }}>
-        {/* Breadcrumb */}
-        <div style={{ maxWidth:'960px', margin:'0 auto', padding:'0 1.5rem' }}>
+      <div style={{ ...s.header, position: 'relative', overflow: 'hidden' }}>
+        {/* Stadium photo layer */}
+        <div style={{ position:'absolute', inset:0, zIndex:0 }}>
+          <img
+            src={getStadiumBg(gameInfo.home.id)}
+            alt=""
+            style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'center 35%', display:'block' }}
+            onError={e => { e.target.style.display = 'none'; }}
+          />
+          <div style={{ position:'absolute', inset:0,
+            background:`linear-gradient(to bottom, rgba(3,8,15,.35) 0%, rgba(3,8,15,.70) 50%, #03080f 100%), linear-gradient(135deg, ${homeColor}22 0%, transparent 60%, ${awayColor}11 100%)` }} />
+        </div>
+
+        {/* Content above backdrop */}
+        <div style={{ position:'relative', zIndex:1, maxWidth:'960px', margin:'0 auto', padding:'0 1.5rem' }}>
           <div style={s.breadcrumb}>
             <a href="/scoreboard" style={{ color:'#5c6070', textDecoration:'none' }}>Scoreboard</a>
             <span style={{ color:'#3a3f52' }}> / </span>
@@ -322,7 +316,7 @@ export default function GamePage() {
             )}
           </div>
 
-          {/* Scoreboard */}
+          {/* Scoreboard row */}
           <div style={s.scoreRow}>
             {/* Away team */}
             <div style={s.teamBlock}>
@@ -338,7 +332,7 @@ export default function GamePage() {
               </div>
             </div>
 
-            {/* Middle divider */}
+            {/* Middle */}
             <div style={s.scoreDivider}>
               <div style={s.scoreDash}>—</div>
               {gameInfo.isLive && (
@@ -401,10 +395,10 @@ export default function GamePage() {
                         <td style={{ ...s.lsTd, color: col, fontWeight:700 }}>{abbr}</td>
                         {linescore.innings.map(inn => (
                           <td key={inn.num} style={s.lsTd}>
-                            {inn[side] === '' ? '—' : (inn[side] ?? '·')}
+                            {side === 'away' ? inn.away : inn.home}
                           </td>
                         ))}
-                        <td style={{ ...s.lsTd, fontWeight:700, color:'#f0f2f8', borderLeft:'1px solid #1e2028' }}>
+                        <td style={{ ...s.lsTd, borderLeft:'1px solid #1e2028', fontWeight:700 }}>
                           {side === 'away' ? linescore.awayRuns : linescore.homeRuns}
                         </td>
                         <td style={s.lsTd}>{side === 'away' ? linescore.awayHits : linescore.homeHits}</td>
@@ -416,8 +410,8 @@ export default function GamePage() {
               </div>
             </div>
           )}
-        </div>
-      </div>
+        </div>{/* end content zIndex wrapper */}
+      </div>{/* end header */}
 
       {/* TAB BAR */}
       <div style={s.tabBar}>

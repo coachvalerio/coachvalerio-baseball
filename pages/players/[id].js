@@ -279,21 +279,7 @@ export default function PlayerPage() {
         {/* ── STATCAST / SAVANT ── */}
         {activeTab==='savant' && (
           <div>
-            <div style={{...s.secLabel,color:colors.primary}}>Statcast / Baseball Savant Metrics</div>
-            <SavantGrid stat={stat} isPitcher={isPit} colors={colors} savantData={savantData} />
-            <div style={s.infoBox}>
-              <strong style={{color:colors.primary,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:'.1em',textTransform:'uppercase'}}>Reading These Tiles</strong><br/>
-              The <strong style={{color:'#f0f2f8'}}>large number</strong> is the stat value. The <strong style={{color:'#f0f2f8'}}>percentile badge</strong> (e.g. 95th) shows rank among all MLB players.
-              The colored bar reflects percentile — <span style={{color:'#00c2a8'}}>teal = elite</span>, <span style={{color:'#2ed47a'}}>green = above avg</span>, <span style={{color:'#f5a623'}}>orange = average</span>, <span style={{color:'#e63535'}}>red = below avg</span>.
-              Percentiles marked * are estimated from season stats — connect your Savant API backend for exact live values.
-            </div>
-            <a href={savantUrl} target="_blank" rel="noopener" style={{...s.savantFullLink, borderColor:colors.primary+'55'}}>
-              <span style={{fontSize:'1.4rem'}}>🎯</span>
-              <div>
-                <div style={{fontWeight:600,color:'#f0f2f8'}}>View Full Savant Profile →</div>
-                <div style={{fontSize:'.72rem',color:'#5c6070'}}>All Statcast metrics, heat maps, spray charts, percentile rankings</div>
-              </div>
-            </a>
+            <SavantTab id={id} stat={stat} isPitcher={isPit} colors={colors} savantUrl={savantUrl} />
           </div>
         )}
 
@@ -361,7 +347,247 @@ export default function PlayerPage() {
 }
 
 // ════════════════════════════════════════════════════════
-// SAVANT GRID — with percentile badges
+// ════════════════════════════════════════════════════════
+// SAVANT COLOR SCHEME — true to Baseball Savant
+// Red = elite/great, Blue = poor, Gray = average
+// ════════════════════════════════════════════════════════
+function savantColor(pct, lowerIsBetter = false) {
+  const p = lowerIsBetter ? 100 - pct : pct;
+  if (p >= 95) return '#c8102e'; // deep red — elite
+  if (p >= 80) return '#e8354a'; // red
+  if (p >= 67) return '#f47c7c'; // light red/pink
+  if (p >= 34) return '#9e9e9e'; // gray — average
+  if (p >= 20) return '#6baed6'; // light blue
+  if (p >= 5)  return '#2171b5'; // blue
+  return '#084594';              // deep blue — poor
+}
+
+// ════════════════════════════════════════════════════════
+// SAVANT TAB — year dropdown + view toggle + red/blue scheme
+// ════════════════════════════════════════════════════════
+function SavantTab({ id, stat, isPitcher, colors, savantUrl }) {
+  const currentYear = new Date().getFullYear();
+  const SEASON_NOW  = currentYear >= 2025 ? currentYear : 2025;
+  const YEARS = Array.from({ length: SEASON_NOW - 2017 + 1 }, (_, i) => SEASON_NOW - i);
+
+  const [year, setYear]         = useState(SEASON_NOW);
+  const [viewMode, setViewMode] = useState('savant'); // 'savant' | 'coach'
+  const [data, setData]         = useState(null);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setData(null);
+    fetch(`/api/savant?id=${id}&year=${year}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [id, year]);
+
+  const tiles = isPitcher ? getPitTiles(stat, data) : getBatTiles(stat, data);
+
+  return (
+    <div>
+      {/* Controls row */}
+      <div style={{ display:'flex', alignItems:'center', gap:'1rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+        <div style={{ flex:1 }}>
+          <div style={{ ...s.secLabel, color:colors.primary, marginBottom:0 }}>Statcast / Savant</div>
+        </div>
+
+        {/* Year dropdown */}
+        <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+          <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.7rem', fontWeight:700, letterSpacing:'.12em', color:'#5c6070' }}>SEASON</span>
+          <select
+            value={year}
+            onChange={e => setYear(parseInt(e.target.value))}
+            style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'6px', color:'#f0f2f8', padding:'.3rem .6rem', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.85rem', fontWeight:700, cursor:'pointer', outline:'none' }}>
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+
+        {/* View toggle */}
+        <div style={{ display:'flex', background:'#0d1117', border:'1px solid #1e2028', borderRadius:'6px', overflow:'hidden' }}>
+          {[['savant','📊 Savant Style'],['coach','⬛ Tile View']].map(([mode, label]) => (
+            <button key={mode} onClick={() => setViewMode(mode)}
+              style={{ padding:'.3rem .85rem', background: viewMode===mode ? '#1e2028' : 'transparent', border:'none', color: viewMode===mode ? '#f0f2f8' : '#5c6070', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.75rem', fontWeight:700, letterSpacing:'.08em', cursor:'pointer', transition:'all .2s' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ textAlign:'center', padding:'2rem', color:'#3a3f52', fontSize:'.85rem' }}>
+          Loading {year} Statcast data…
+        </div>
+      )}
+
+      {/* No data */}
+      {!loading && (!data?.available) && (
+        <div style={{ ...s.card, padding:'1.5rem', textAlign:'center', color:'#5c6070', marginBottom:'1.5rem' }}>
+          <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>📭</div>
+          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:'.9rem', color:'#f0f2f8', marginBottom:'.35rem' }}>
+            No Statcast data for {year}
+          </div>
+          <div style={{ fontSize:'.8rem' }}>
+            Player may not have met minimum plate appearances, or data isn't available for this season yet.
+          </div>
+        </div>
+      )}
+
+      {/* SAVANT STYLE VIEW — horizontal bars like baseballsavant.mlb.com */}
+      {!loading && data?.available && viewMode === 'savant' && (
+        <SavantStyleView tiles={tiles} data={data} isPitcher={isPitcher} year={year} />
+      )}
+
+      {/* TILE VIEW — existing card grid */}
+      {!loading && data?.available && viewMode === 'coach' && (
+        <SavantTileView tiles={tiles} data={data} colors={colors} />
+      )}
+
+      {/* Legend */}
+      {!loading && data?.available && (
+        <div style={{ display:'flex', alignItems:'center', gap:'1.25rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+          <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.15em', color:'#3a3f52' }}>PERCENTILE</span>
+          {[['#c8102e','90–99 Elite'],['#f47c7c','67–89 Above Avg'],['#9e9e9e','34–66 Average'],['#6baed6','11–33 Below Avg'],['#084594','1–10 Poor']].map(([c,l]) => (
+            <div key={l} style={{ display:'flex', alignItems:'center', gap:'.3rem' }}>
+              <div style={{ width:'10px', height:'10px', borderRadius:'50%', background:c }} />
+              <span style={{ fontSize:'.68rem', color:'#5c6070' }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Savant link */}
+      <a href={savantUrl} target="_blank" rel="noopener" style={{ ...s.savantFullLink, borderColor: colors.primary+'55' }}>
+        <span style={{ fontSize:'1.4rem' }}>🎯</span>
+        <div>
+          <div style={{ fontWeight:600, color:'#f0f2f8' }}>View Full Savant Profile →</div>
+          <div style={{ fontSize:'.72rem', color:'#5c6070' }}>Heat maps · Spray charts · Pitch arsenal · Full percentile rankings</div>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+// ── Savant-style horizontal bar rows ─────────────────────────────────────────
+function SavantStyleView({ tiles, data, isPitcher, year }) {
+  // Group tiles into sections like Savant does
+  const batGroups = [
+    { label:'Expected Stats', keys:['xba','xslg','xwoba'] },
+    { label:'Quality of Contact', keys:['exit_velocity','launch_angle','barrel','hard_hit','sweet_spot'] },
+    { label:'Plate Discipline', keys:['k_pct','bb_pct'] },
+    { label:'Speed', keys:['sprint_speed'] },
+    { label:'Fielding', keys:['outs_above_avg'] },
+  ];
+  const pitGroups = [
+    { label:'Stuff', keys:['avg_fastball','whiff'] },
+    { label:'Expected Stats', keys:['xera','xba','xwoba'] },
+    { label:'Contact Allowed', keys:['exit_velocity','barrel','hard_hit'] },
+    { label:'Results', keys:['era_pct','k9_pct','bb9_pct'] },
+  ];
+  const groups = isPitcher ? pitGroups : batGroups;
+
+  return (
+    <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', overflow:'hidden', marginBottom:'1.5rem' }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.75rem 1.25rem', borderBottom:'1px solid #1e2028', background:'#080c12' }}>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'1.1rem', letterSpacing:'.1em', color:'#f0f2f8' }}>
+          {year} MLB Percentile Rankings
+        </div>
+        <div style={{ display:'flex', gap:'1.5rem', fontSize:'.65rem', fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, letterSpacing:'.12em' }}>
+          <span style={{ color:'#2171b5' }}>◀ POOR</span>
+          <span style={{ color:'#9e9e9e' }}>AVERAGE</span>
+          <span style={{ color:'#c8102e' }}>GREAT ▶</span>
+        </div>
+      </div>
+
+      {groups.map(group => {
+        const groupTiles = tiles.filter(t => group.keys.some(k => t.savantKey?.includes(k) || t.label?.toLowerCase().includes(k.replace(/_/g,' '))));
+        if (groupTiles.length === 0) return null;
+        return (
+          <div key={group.label}>
+            {/* Group header */}
+            <div style={{ padding:'.5rem 1.25rem', background:'#080c12', borderBottom:'1px solid #1e2028', borderTop:'1px solid #1e2028' }}>
+              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.18em', color:'#5c6070' }}>
+                {group.label.toUpperCase()}
+              </div>
+            </div>
+            {/* Rows */}
+            {groupTiles.map((t, i) => {
+              const pct = data?.[t.savantKey] ?? t.estimatedPct;
+              const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
+              const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+              const barPct = pctNum ?? 50;
+              return (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'.55rem 1.25rem', borderBottom:'1px solid #080c12' }}>
+                  {/* Label */}
+                  <div style={{ width:'140px', flexShrink:0, fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.8rem', fontWeight:600, color:'#b8bdd0' }}>
+                    {t.label}
+                  </div>
+                  {/* Bar track */}
+                  <div style={{ flex:1, height:'8px', background:'#1e2028', borderRadius:'4px', position:'relative', overflow:'hidden' }}>
+                    {/* Center line */}
+                    <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:'1px', background:'#2a2f3f', zIndex:1 }} />
+                    {/* Fill — from left edge to pct position */}
+                    <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${barPct}%`, background:col, borderRadius:'4px', transition:'width .5s ease' }} />
+                  </div>
+                  {/* Badge */}
+                  {pctNum !== null ? (
+                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:col, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'.85rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
+                    </div>
+                  ) : (
+                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#1e2028', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:'.65rem', color:'#3a3f52' }}>—</span>
+                    </div>
+                  )}
+                  {/* Value */}
+                  <div style={{ width:'55px', flexShrink:0, textAlign:'right', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.82rem', fontWeight:700, color:'#f0f2f8' }}>
+                    {t.val ?? '—'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Tile view (updated with Savant red/blue colors) ───────────────────────────
+function SavantTileView({ tiles, data, colors }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(165px,1fr))', gap:'.875rem', marginBottom:'1.5rem' }}>
+      {tiles.map((t,i) => {
+        const pct = data?.[t.savantKey] ?? t.estimatedPct;
+        const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
+        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+        const barWidth = pctNum ?? Math.round((t.bar||0)*100);
+        return (
+          <div key={i} style={{ ...s.svTile, transition:'border-color .2s,transform .15s', borderColor: pctNum !== null ? col+'33' : '#1e2028' }}>
+            {pctNum !== null && (
+              <div style={{ position:'absolute', top:'.5rem', right:'.5rem', width:'28px', height:'28px', borderRadius:'50%', background:col, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:'.78rem', color:'#fff', lineHeight:1 }}>{pctNum}</span>
+              </div>
+            )}
+            <div style={s.svLabel}>{t.label}</div>
+            <div style={{ ...s.svVal, color:'#f0f2f8' }}>{t.val ?? '—'}</div>
+            <div style={s.svSub}>{t.sub}</div>
+            <div style={s.svBar}>
+              <div style={{ ...s.svBarFill, width:`${Math.min(100,barWidth)}%`, background:col }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// OLD SavantGrid — kept for hero strip only, now uses savantColor
 // ════════════════════════════════════════════════════════
 function SavantGrid({ stat, isPitcher, colors, savantData }) {
   const tiles = isPitcher ? getPitTiles(stat, savantData) : getBatTiles(stat, savantData);
@@ -370,24 +596,20 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
       {tiles.map((t,i)=>{
         const pct = savantData?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const barColor = pctNum !== null ? pctColor(pctNum, t.lowerIsBetter) : colors.primary;
+        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
         const barWidth = pctNum !== null ? pctNum : Math.round((t.bar||0)*100);
         return (
-          <div key={i} className="sv-tile" style={{...s.svTile,transition:'border-color .2s,transform .15s'}}>
-            {/* Percentile badge */}
+          <div key={i} className="sv-tile" style={{...s.svTile,borderColor:pctNum?col+'33':'#1e2028'}}>
             {pctNum !== null && (
-              <div style={{position:'absolute',top:'.5rem',right:'.5rem',background:pctColor(pctNum,t.lowerIsBetter)+'22',border:`1px solid ${pctColor(pctNum,t.lowerIsBetter)}44`,borderRadius:'4px',padding:'.1rem .35rem',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,color:pctColor(pctNum,t.lowerIsBetter)}}>
-                {pctNum}th
+              <div style={{position:'absolute',top:'.5rem',right:'.5rem',width:'26px',height:'26px',borderRadius:'50%',background:col,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'.75rem',color:'#fff',lineHeight:1}}>{pctNum}</span>
               </div>
             )}
             <div style={s.svLabel}>{t.label}</div>
-            {/* If value is missing, show the percentile as the main value */}
-            <div style={{...s.svVal, color: pctNum !== null && (!t.val || t.val==='—') ? pctColor(pctNum,t.lowerIsBetter) : '#f0f2f8', fontSize: pctNum !== null && (!t.val || t.val==='—') ? '2rem' : '2.4rem'}}>
-              {(!t.val || t.val==='—') && pctNum !== null ? `${pctNum}th %ile` : (t.val ?? '—')}
-            </div>
+            <div style={{...s.svVal,color:'#f0f2f8'}}>{t.val ?? '—'}</div>
             <div style={s.svSub}>{t.sub}</div>
             <div style={s.svBar}>
-              <div style={{...s.svBarFill, width:`${Math.min(100,barWidth)}%`, background:barColor}} />
+              <div style={{...s.svBarFill, width:`${Math.min(100,barWidth)}%`, background:col}} />
             </div>
           </div>
         );
