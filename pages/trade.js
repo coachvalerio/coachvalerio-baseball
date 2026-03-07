@@ -121,7 +121,11 @@ export default function TradePage() {
         }),
       });
       const d = await r.json();
-      if (d.error) { setError(d.detail ? `${d.error}: ${d.detail}` : d.error); setLoading(false); return; }
+      if (d.error) { 
+        setError(d.stack ? `${d.error}\n\n${d.stack}` : d.error); 
+        setLoading(false); 
+        return; 
+      }
       setResult(d);
     } catch (err) {
       setError(err.message);
