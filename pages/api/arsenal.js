@@ -16,6 +16,12 @@
 //         avg_break_x, avg_break_z (or pitcher_break_x/z)
 //   → velo + spin + break per pitch type
 
+function getCurrentSeasonYear() {
+  const now = new Date();
+  const y   = now.getFullYear();
+  return now >= new Date(y, 2, 20) ? y : y - 1;  // pre-March-20 → prior season
+}
+
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Accept': 'text/csv,text/plain,*/*',
@@ -78,9 +84,10 @@ const wavg = (rows, field, wField) => {
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
-  const { id, year=new Date().getFullYear(), debug } = req.query;
+  const { id, year:yearParam, debug } = req.query;
   if (!id) return res.status(400).json({ error:'Missing player id' });
-  const numId = parseInt(id, 10);
+  const year   = yearParam ?? getCurrentSeasonYear();
+  const numId  = parseInt(id, 10);
 
   // ── Step 1: Source A + Source C in parallel ────────────────────────────────
   const [resA, resC] = await Promise.allSettled([

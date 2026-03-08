@@ -746,9 +746,10 @@ function StrikeZoneChart({ pitches, selectedPitch }) {
 }
 
 function ArsenalTab({ id, colors, player }) {
-  const curYear = new Date().getFullYear();
-  const YEARS = Array.from({ length: curYear - 2017 + 1 }, (_, i) => curYear - i);
-  const [year, setYear] = useState(curYear);
+  const curYear  = new Date().getFullYear();
+  const defYear  = getCurrentSeason();   // respects pre-March-20 offset; avoids empty pre-season fetches
+  const YEARS    = Array.from({ length: curYear - 2017 + 1 }, (_, i) => curYear - i);
+  const [year, setYear] = useState(defYear);
   const [arsenal, setArsenal] = useState([]);
   const [pitches, setPitches] = useState([]); // per-pitch rows for location
   const [loading, setLoading] = useState(true);
@@ -775,7 +776,7 @@ function ArsenalTab({ id, colors, player }) {
   const fmtStat = v => v !== null && v !== undefined ? v.toFixed(3) : '—';
 
   // Total pitches for usage fallback (if usage_pct not available)
-  const totalPitches = arsenal.reduce((s, r) => s + (r.pitches || 0), 0);
+  const totalPitches = arsenal.reduce((s, r) => s + (r.pitch_count || 0), 0);
 
   return (
     <div>
@@ -828,7 +829,7 @@ function ArsenalTab({ id, colors, player }) {
                     const col   = pitchColor(r.pitch_type);
                     const usage = r.usage_pct !== null && r.usage_pct !== undefined
                       ? r.usage_pct
-                      : (totalPitches > 0 ? (r.pitches||0)/totalPitches*100 : 0);
+                      : (totalPitches > 0 ? (r.pitch_count||0)/totalPitches*100 : 0);
                     return (
                       <tr key={i}
                         onClick={() => setSelPitch(r.pitch_type)}
