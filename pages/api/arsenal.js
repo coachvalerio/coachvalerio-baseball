@@ -8,6 +8,18 @@ const HEADERS = {
   'Referer': 'https://baseballsavant.mlb.com/',
 };
 
+// Only recognized MLB Statcast pitch classifications
+// KN (knuckleball), EP (eephus), PO (pitchout) are valid but extremely rare —
+// we require minimum thresholds to avoid misclassified outliers appearing
+const KNOWN_PITCH_TYPES = new Set([
+  'FF','SI','FC','SL','ST','CU','KC','CH','FS','FO','KN','EP','CS','SV','SC','FA','IN','PO'
+]);
+
+// Minimum pitches required for a pitch type to appear in the arsenal.
+// This prevents 1-2 misclassified pitches (common in Statcast) from showing up.
+// ~1% of typical starter workload (~3000 pitches) = 30 pitches minimum.
+const MIN_PITCHES = 25;
+
 function parseCSV(text) {
   if (!text?.trim()) return { headers: [], rows: [] };
   const lines = text.trim().split('\n');
@@ -39,12 +51,12 @@ const flt = (r, ...keys) => {
 const str = (r, ...keys) => {
   for (const k of keys) {
     const v = (r[k]??'').trim();
-    if (v && v !== '' && !v.match(/^-?\d+\.?\d*$/)) return v;
+    // must be non-empty and not a pure number
+    if (v && !v.match(/^-?\d+\.?\d*$/)) return v;
   }
   return null;
 };
 
-// Weighted average helper
 function wavg(items, valKey, weightKey) {
   let num = 0, den = 0;
   for (const it of items) {
@@ -54,29 +66,25 @@ function wavg(items, valKey, weightKey) {
   return den > 0 ? num / den : null;
 }
 
-// Parse a raw CSV row into normalized fields — works for both endpoints
 function parseRow(r) {
-  // pitch_type_name = pitch-arsenal-stats, pitch_name = statcast_search
-  const pitchName = str(r, 'pitch_type_name', 'pitch_name') ?? r['pitch_type'] ?? '—';
-  const pitchType = (r['pitch_type']??'').trim() || '—';
+  const pitchType = (r['pitch_type']??'').trim();
+  // pitch_type_name comes from pitch-arsenal-stats; pitch_name from statcast_search
+  const pitchName = str(r, 'pitch_type_name', 'pitch_name') ?? pitchType ?? '—';
 
-  // Usage: pitch_percent (0–1 or 0–100), or pitch count
-  const pitchPct = flt(r, 'pitch_percent');
+  const pitchPct   = flt(r, 'pitch_percent');
   const pitchCount = flt(r, 'pitches', 'pitch_count', 'n') ?? 0;
 
-  // pfx_x / pfx_z come in FEET from statcast_search — convert to inches
+  // pfx_x / pfx_z from statcast_search come in feet — convert to inches
   const pfxX = flt(r, 'pfx_x');
   const pfxZ = flt(r, 'pfx_z');
 
   return {
-    pitch_type:  pitchType,
+    pitch_type:  pitchType || '—',
     pitch_name:  pitchName,
-    // usage stored as 0–100 number, or null (will be computed from counts later)
     usage_pct:   pitchPct !== null ? (pitchPct > 1 ? pitchPct : pitchPct * 100) : null,
     pitch_count: pitchCount,
     avg_speed:   flt(r, 'avg_speed', 'release_speed'),
-    avg_spin:    flt(r, 'avg_spin_rate', 'avg_spin', 'release_spin_rate', 'spin_rate'),
-    // arsenal-stats has avg_break_x in inches; statcast_search has pfx_x in feet
+    avg_spin:    flt(r, 'avg_spin_rate', 'avg_spin', 'release_spin_rate'),
     avg_break_x: flt(r, 'avg_break_x') ?? (pfxX !== null ? pfxX * 12 : null),
     avg_break_z: flt(r, 'avg_break_z') ?? (pfxZ !== null ? pfxZ * 12 : null),
     whiff_pct:   flt(r, 'whiff_percent', 'whiff_rate'),
@@ -85,37 +93,35 @@ function parseRow(r) {
     slg:         flt(r, 'slg', 'slg_percent'),
     woba:        flt(r, 'woba'),
     xwoba:       flt(r, 'xwoba', 'estimated_woba_using_speedangle'),
-    put_away:    flt(r, 'put_away', 'put_away_percent'),
+    put_away:    flt(r, 'put_away'),
   };
 }
 
-// Group rows by pitch_type and compute weighted averages
 function aggregateByPitchType(parsedRows) {
   const groups = {};
   for (const r of parsedRows) {
-    const key = r.pitch_type && r.pitch_type !== '—' ? r.pitch_type : r.pitch_name;
-    if (!key || key === '—') continue;
+    const key = r.pitch_type !== '—' ? r.pitch_type : null;
+    if (!key) continue;
     if (!groups[key]) groups[key] = [];
     groups[key].push(r);
   }
 
-  return Object.entries(groups).map(([key, rows]) => {
-    // Count-based weight for averaging
+  const result = Object.entries(groups).map(([key, rows]) => {
     const totalCount = rows.reduce((s, r) => s + (r.pitch_count || 1), 0);
-
-    // If usage_pct is already provided (arsenal-stats endpoint), sum it
     const hasUsagePct = rows.some(r => r.usage_pct !== null);
     const usagePct = hasUsagePct
       ? rows.reduce((s, r) => s + (r.usage_pct ?? 0), 0)
-      : null; // will be computed from counts later
+      : null;
 
-    const w = (r) => r.pitch_count || 1;
-
-    const wavgField = (field) => wavg(rows, field, 'pitch_count') 
-      ?? (rows.every(r => r[field] === null) ? null : rows.reduce((s,r) => s + (r[field]??0), 0) / rows.length);
+    const wavgField = (field) => {
+      const w = wavg(rows, field, 'pitch_count');
+      if (w !== null) return w;
+      const valid = rows.filter(r => r[field] !== null);
+      return valid.length > 0 ? valid.reduce((s,r) => s + r[field], 0) / valid.length : null;
+    };
 
     return {
-      pitch_type:  rows[0].pitch_type,
+      pitch_type:  key,
       pitch_name:  rows[0].pitch_name,
       usage_pct:   usagePct,
       pitch_count: totalCount,
@@ -131,7 +137,30 @@ function aggregateByPitchType(parsedRows) {
       xwoba:       wavgField('xwoba'),
       put_away:    wavgField('put_away'),
     };
-  }).sort((a, b) => (b.pitch_count || 0) - (a.pitch_count || 0));
+  });
+
+  // Sort by pitch count descending (most-used pitch first)
+  return result.sort((a, b) => (b.pitch_count || 0) - (a.pitch_count || 0));
+}
+
+// Filter aggregated pitches: must be a known type AND meet minimum count threshold
+// Also computes final usage_pct if not already set
+function finalize(pitches) {
+  // First pass: compute total for usage denominator
+  const total = pitches.reduce((s, p) => s + (p.pitch_count || 0), 0);
+
+  return pitches
+    .filter(p => {
+      // Must be a known Statcast pitch classification
+      if (!KNOWN_PITCH_TYPES.has(p.pitch_type)) return false;
+      // Must meet minimum pitch count (eliminates Statcast misclassifications)
+      if ((p.pitch_count || 0) < MIN_PITCHES) return false;
+      return true;
+    })
+    .map(p => ({
+      ...p,
+      usage_pct: p.usage_pct ?? (total > 0 ? (p.pitch_count / total) * 100 : null),
+    }));
 }
 
 export default async function handler(req, res) {
@@ -140,7 +169,7 @@ export default async function handler(req, res) {
   const { id, year = new Date().getFullYear() } = req.query;
   if (!id) return res.status(400).json({ error: 'Missing player id' });
 
-  // ── Primary: pitch-arsenal-stats (one row per pitch type, per player) ──
+  // ── Primary: pitch-arsenal-stats (already 1 row per pitch type) ──────────
   const primaryUrl = `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${year}&team=&min=0&player_id=${id}&csv=true`;
 
   try {
@@ -149,43 +178,37 @@ export default async function handler(req, res) {
     if (r.ok) {
       const text = await r.text();
       const { headers, rows: rawRows } = parseCSV(text);
-      console.log(`[arsenal/primary] id=${id} year=${year} rows=${rawRows.length} cols=${headers.slice(0,12).join('|')}`);
+      console.log(`[arsenal/primary] id=${id} year=${year} rawRows=${rawRows.length} cols=${headers.slice(0,10).join('|')}`);
 
       const parsed = rawRows
-        .filter(r => (r['pitch_type'] || r['pitch_type_name']) && r['pitch_type'] !== '')
-        .map(parseRow);
+        .filter(r => r['pitch_type'] && KNOWN_PITCH_TYPES.has(r['pitch_type'].trim()))
+        .map(parseRow)
+        .filter(r => r.pitch_count >= MIN_PITCHES || r.usage_pct >= 0.5);
 
       if (parsed.length > 0) {
-        const pitches = aggregateByPitchType(parsed);
-        // Compute usage from pitch_count if usage_pct is null
-        const total = pitches.reduce((s, p) => s + (p.pitch_count||0), 0);
-        pitches.forEach(p => {
-          if (p.usage_pct === null && total > 0) p.usage_pct = (p.pitch_count / total) * 100;
-        });
+        const pitches = finalize(aggregateByPitchType(parsed));
+        console.log(`[arsenal/primary] returning ${pitches.length} pitch types: ${pitches.map(p=>p.pitch_type).join(',')}`);
         return res.status(200).json({ pitches, source: 'pitch_arsenal_stats' });
       }
     }
 
-    // ── Fallback: statcast_search grouped by pitch type ──────────────────
-    console.log(`[arsenal] primary empty/failed, trying statcast_search fallback`);
-    const fallbackUrl = `https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfSeas=${year}%7C&player_type=pitcher&pitchers_lookup%5B%5D=${id}&group_by=name-pitch&sort_col=pitches&sort_order=desc&min_pitches=0`;
+    // ── Fallback: statcast_search ─────────────────────────────────────────
+    console.log(`[arsenal] primary empty — trying statcast_search fallback`);
+    const fallbackUrl = `https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfSeas=${year}%7C&player_type=pitcher&pitchers_lookup%5B%5D=${id}&group_by=name-pitch&sort_col=pitches&sort_order=desc&min_pitches=${MIN_PITCHES}`;
     const r2 = await fetch(fallbackUrl, { headers: HEADERS, signal: AbortSignal.timeout(9000) });
 
     if (!r2.ok) return res.status(502).json({ error: 'Both Savant endpoints failed' });
 
     const text2 = await r2.text();
     const { headers: h2, rows: rawRows2 } = parseCSV(text2);
-    console.log(`[arsenal/fallback] rows=${rawRows2.length} cols=${h2.slice(0,12).join('|')}`);
+    console.log(`[arsenal/fallback] rawRows=${rawRows2.length} cols=${h2.slice(0,10).join('|')}`);
 
     const parsed2 = rawRows2
-      .filter(r => r['pitch_type'] && r['pitch_type'] !== '')
+      .filter(r => r['pitch_type'] && KNOWN_PITCH_TYPES.has(r['pitch_type'].trim()))
       .map(parseRow);
 
-    const pitches = aggregateByPitchType(parsed2);
-    const total = pitches.reduce((s, p) => s + (p.pitch_count||0), 0);
-    pitches.forEach(p => {
-      if (p.usage_pct === null && total > 0) p.usage_pct = (p.pitch_count / total) * 100;
-    });
+    const pitches = finalize(aggregateByPitchType(parsed2));
+    console.log(`[arsenal/fallback] returning ${pitches.length} pitch types: ${pitches.map(p=>p.pitch_type).join(',')}`);
 
     return res.status(200).json({ pitches, source: 'statcast_search' });
 
