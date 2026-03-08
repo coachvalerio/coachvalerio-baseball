@@ -572,21 +572,21 @@ const FEATURED = [
   // Row 2 — All-Stars
   { id:607208,  name:'Trea Turner',       pos:'SS · Phillies'   },
   { id:624413,  name:'Pete Alonso',       pos:'1B · Mets'       },
-  { id:682998,  name:'Gunnar Henderson',  pos:'SS · Orioles'    },
-  { id:671096,  name:'Bobby Witt Jr.',    pos:'SS · Royals'     },
-  { id:669016,  name:'Yordan Alvarez',    pos:'DH · Astros'     },
-  { id:663728,  name:'Julio Rodriguez',   pos:'OF · Mariners'   },
-  { id:666971,  name:'Corbin Carroll',    pos:'OF · D-backs'    },
+  { id:683002,  name:'Gunnar Henderson',  pos:'SS · Orioles'    },
+  { id:677951,  name:'Bobby Witt Jr.',    pos:'SS · Royals'     },
+  { id:670541,  name:'Yordan Alvarez',    pos:'DH · Astros'     },
+  { id:677594,  name:'Julio Rodriguez',   pos:'OF · Mariners'   },
+  { id:682998,  name:'Corbin Carroll',    pos:'OF · D-backs'    },
   { id:641355,  name:'José Ramírez',      pos:'3B · Guardians'  },
   // Row 3 — Elite arms + rising stars
   { id:694973,  name:'Paul Skenes',       pos:'SP · Pirates'    },
   { id:675911,  name:'Spencer Strider',   pos:'SP · Braves'     },
   { id:543037,  name:'Gerrit Cole',       pos:'SP · Yankees'    },
-  { id:656756,  name:'Zack Wheeler',      pos:'SP · Phillies'   },
-  { id:694497,  name:'Jackson Chourio',   pos:'OF · Brewers'    },
-  { id:691406,  name:'Jackson Holliday',  pos:'SS · Orioles'    },
-  { id:677951,  name:'Junior Caminero',   pos:'3B · Rays'       },
-  { id:680757,  name:'Wyatt Langford',    pos:'OF · Rangers'    },
+  { id:554430,  name:'Zack Wheeler',      pos:'SP · Phillies'   },
+  { id:694192,  name:'Jackson Chourio',   pos:'OF · Brewers'    },
+  { id:702616,  name:'Jackson Holliday',  pos:'SS · Orioles'    },
+  { id:691406,  name:'Junior Caminero',   pos:'3B · Rays'       },
+  { id:694671,  name:'Wyatt Langford',    pos:'OF · Rangers'    },
 ];
 
 const s = {
