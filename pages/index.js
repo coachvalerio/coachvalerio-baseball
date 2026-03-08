@@ -214,6 +214,8 @@ export default function Home() {
   const [loadingNews, setLN]        = useState(true);
   const [activeLeader, setActive]   = useState('battingAverage');
   const [spotlight, setSpotlight]   = useState(null);
+  const [hotCold, setHotCold]       = useState(null);
+  const [loadingHC, setLoadingHC]   = useState(true);
   const router  = useRouter();
   const SEASON  = getCurrentSeason();
 
@@ -223,6 +225,10 @@ export default function Home() {
 
   useEffect(() => {
     fetch('/api/news').then(r=>r.json()).then(d=>{setNews(d.articles??[]);setLN(false);}).catch(()=>setLN(false));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/hot-cold').then(r=>r.json()).then(d=>{ setHotCold(d); setLoadingHC(false); }).catch(()=>setLoadingHC(false));
   }, []);
 
   let st;
@@ -274,7 +280,7 @@ export default function Home() {
         <a href="/" style={s.logo}>COACH<span style={{color:'#00c2a8'}}>.</span></a>
         <div style={s.navLinks}>
           {[['/', 'Home'],['/scoreboard','Scoreboard'],['/teams','Teams'],['/transactions','Transactions'],
-            ['/compare','Compare'],['/trade','Trade AI'],['/odds-board','Odds Board'],[`/leaders?season=${SEASON}`,'Leaders']
+            ['/compare','Compare'],['/trade','Trade AI'],['/odds-board','Odds Board'],['/prospects','Prospects'],[`/leaders?season=${SEASON}`,'Leaders']
           ].map(([href,label])=>(
             <a key={href} href={href} style={s.navLink}>{label}</a>
           ))}
@@ -287,7 +293,7 @@ export default function Home() {
         <div style={s.heroContent}>
           <div style={s.siteTitle}>COACH<span style={{color:'#00c2a8'}}>.</span></div>
           <div style={s.tagline}>DIG DEEP</div>
-          <div style={s.heroSub}>MLB Stats · Statcast · Daily Predictions · {SEASON} Season</div>
+          <div style={s.heroSub}>MLB Stats · Statcast · Prospects · Daily Predictions</div>
           <div style={s.searchWrap}>
             <span style={s.searchIcon}>⌕</span>
             <input style={s.searchInput} type="text" placeholder="Search any MLB player — past or present…"
@@ -345,12 +351,135 @@ export default function Home() {
         </div>
       </div>
 
-      {/* LEADERS + NEWS */}
+      {/* HOT / COLD — last 10 games */}
+      <div style={s.section}>
+        <div style={s.sectionInner}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem' }}>
+
+            {/* WHO'S HOT */}
+            <div>
+              <div style={{ ...s.secLabel, color:'#ff6a00', borderBottomColor:'#ff6a0033' }}>
+                🔥 WHO'S HOT <span style={{ color:'#3a3f52', fontSize:'.6rem', letterSpacing:'.1em', fontWeight:400, marginLeft:'.5rem' }}>LAST 10 GAMES</span>
+              </div>
+              {loadingHC ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                  {Array.from({length:5}).map((_,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.6rem', background:'#0d1117', borderRadius:'8px', border:'1px solid #1e2028' }}>
+                      <div className="skeleton" style={{ width:'34px', height:'34px', borderRadius:'50%' }} />
+                      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'.3rem' }}>
+                        <div className="skeleton" style={{ width:'120px', height:'12px', borderRadius:'3px' }} />
+                        <div className="skeleton" style={{ width:'80px', height:'10px', borderRadius:'3px' }} />
+                      </div>
+                      <div className="skeleton" style={{ width:'60px', height:'16px', borderRadius:'4px' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : hotCold?.offseason ? (
+                <div style={{ padding:'1.5rem', background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', textAlign:'center' }}>
+                  <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>⚾</div>
+                  <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.95rem', color:'#f0f2f8', marginBottom:'.3rem' }}>SEASON PREVIEW</div>
+                  <div style={{ fontSize:'.78rem', color:'#5c6070' }}>Live hot/cold tracking begins opening day</div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'.4rem' }}>
+                  {(hotCold?.hot ?? []).map((p, i) => (
+                    <div key={p.id} onClick={()=>router.push(`/players/${p.id}`)}
+                      style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.65rem .85rem', background:'#0d1117', borderRadius:'10px', border:'1px solid rgba(255,106,0,.15)', cursor:'pointer', transition:'all .15s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor='#ff6a00';e.currentTarget.style.background='rgba(255,106,0,.06)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,106,0,.15)';e.currentTarget.style.background='#0d1117'}}>
+                      <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.85rem', color:'#ff6a00', width:'18px', textAlign:'center', flexShrink:0 }}>{i+1}</div>
+                      <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${p.id}/headshot/67/current`}
+                        alt="" style={{ width:'34px', height:'34px', borderRadius:'50%', objectFit:'cover', background:'#1e2028', flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontFamily:"'Inter',sans-serif", fontWeight:700, fontSize:'.85rem', color:'#f0f2f8', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                        <div style={{ fontSize:'.68rem', color:'#5c6070' }}>{p.pos} · {p.team}</div>
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.9rem', color:'#ff6a00' }}>{p.type==='pitcher' ? p.era+' ERA' : p.avg}</div>
+                        <div style={{ fontSize:'.62rem', color:'#5c6070', marginTop:'.1rem' }}>{p.type==='pitcher' ? `${p.k} K` : `${p.hr} HR · ${p.rbi} RBI`}</div>
+                      </div>
+                      <span style={{ fontSize:'1rem', flexShrink:0 }}>🔥</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* WHO'S NOT */}
+            <div>
+              <div style={{ ...s.secLabel, color:'#6baed6', borderBottomColor:'#6baed633' }}>
+                🧊 WHO'S NOT <span style={{ color:'#3a3f52', fontSize:'.6rem', letterSpacing:'.1em', fontWeight:400, marginLeft:'.5rem' }}>LAST 10 GAMES</span>
+              </div>
+              {loadingHC ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                  {Array.from({length:5}).map((_,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.6rem', background:'#0d1117', borderRadius:'8px', border:'1px solid #1e2028' }}>
+                      <div className="skeleton" style={{ width:'34px', height:'34px', borderRadius:'50%' }} />
+                      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'.3rem' }}>
+                        <div className="skeleton" style={{ width:'120px', height:'12px', borderRadius:'3px' }} />
+                        <div className="skeleton" style={{ width:'80px', height:'10px', borderRadius:'3px' }} />
+                      </div>
+                      <div className="skeleton" style={{ width:'60px', height:'16px', borderRadius:'4px' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : hotCold?.offseason ? (
+                <div style={{ padding:'1.5rem', background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', textAlign:'center' }}>
+                  <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>📅</div>
+                  <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.95rem', color:'#f0f2f8', marginBottom:'.3rem' }}>CHECK BACK SOON</div>
+                  <div style={{ fontSize:'.78rem', color:'#5c6070' }}>Cold tracking begins when the season starts</div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'.4rem' }}>
+                  {(hotCold?.cold ?? []).map((p, i) => (
+                    <div key={p.id} onClick={()=>router.push(`/players/${p.id}`)}
+                      style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.65rem .85rem', background:'#0d1117', borderRadius:'10px', border:'1px solid rgba(107,174,214,.12)', cursor:'pointer', transition:'all .15s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor='#6baed6';e.currentTarget.style.background='rgba(107,174,214,.05)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(107,174,214,.12)';e.currentTarget.style.background='#0d1117'}}>
+                      <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.85rem', color:'#6baed6', width:'18px', textAlign:'center', flexShrink:0 }}>{i+1}</div>
+                      <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${p.id}/headshot/67/current`}
+                        alt="" style={{ width:'34px', height:'34px', borderRadius:'50%', objectFit:'cover', background:'#1e2028', flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontFamily:"'Inter',sans-serif", fontWeight:700, fontSize:'.85rem', color:'#f0f2f8', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                        <div style={{ fontSize:'.68rem', color:'#5c6070' }}>{p.pos} · {p.team}</div>
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.9rem', color:'#6baed6' }}>{p.type==='pitcher' ? p.era+' ERA' : p.avg}</div>
+                        <div style={{ fontSize:'.62rem', color:'#5c6070', marginTop:'.1rem' }}>{p.type==='pitcher' ? `${p.k} K` : `${p.hr} HR · ${p.rbi} RBI`}</div>
+                      </div>
+                      <span style={{ fontSize:'1rem', flexShrink:0 }}>🧊</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROSPECTS PROMO BANNER */}
+      <div style={s.section}>
+        <div style={s.sectionInner}>
+          <a href="/prospects" style={{ display:'flex', alignItems:'center', gap:'1.5rem', background:'linear-gradient(135deg,#080c12 0%,#0d1117 100%)', border:'1px solid #1e2028', borderRadius:'12px', padding:'1.25rem 1.5rem', textDecoration:'none', transition:'all .2s', overflow:'hidden', position:'relative' }}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor='#00c2a8';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,194,168,.1)'}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor='#1e2028';e.currentTarget.style.boxShadow='none'}}>
+            <div style={{ position:'absolute', right:'-20px', top:'-20px', fontSize:'6rem', opacity:.04, lineHeight:1, pointerEvents:'none' }}>⚾</div>
+            <div style={{ fontSize:'2rem', flexShrink:0 }}>🌱</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'1.2rem', color:'#f0f2f8', letterSpacing:'.04em' }}>MLB PROSPECTS TOP 100</div>
+              <div style={{ fontSize:'.78rem', color:'#5c6070', marginTop:'.2rem' }}>Tool grades · ETA timelines · Live minor league stats · Farm system rankings · Radar charts</div>
+            </div>
+            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.8rem', fontWeight:700, letterSpacing:'.1em', color:'#00c2a8', flexShrink:0 }}>EXPLORE →</div>
+          </a>
+        </div>
+      </div>
+
+
       <div style={s.section}>
         <div style={{...s.sectionInner,display:'grid',gridTemplateColumns:'1fr 380px',gap:'2rem',alignItems:'start'}}>
 
           <div>
-            <div style={s.secLabel}>🏆 {SEASON} LEAGUE LEADERS</div>
+            <div style={s.secLabel}>🏆 LEAGUE LEADERS</div>
             <div style={s.catTabs}>
               {CATS.map(c=>(
                 <button key={c.id} className="cat-btn"
@@ -431,18 +560,33 @@ export default function Home() {
 }
 
 const FEATURED = [
-  { id:592450,  name:'Aaron Judge',     pos:'OF · Yankees'   },
-  { id:660271,  name:'Shohei Ohtani',   pos:'DH/P · Dodgers' },
-  { id:545361,  name:'Mike Trout',      pos:'OF · Angels'    },
-  { id:605141,  name:'Mookie Betts',    pos:'OF · Dodgers'   },
-  { id:518692,  name:'Freddie Freeman', pos:'1B · Dodgers'   },
-  { id:660670,  name:'Ronald Acuña Jr.',pos:'OF · Braves'    },
-  { id:547180,  name:'Bryce Harper',    pos:'1B · Phillies'  },
-  { id:543037,  name:'Gerrit Cole',     pos:'SP · Yankees'   },
-  { id:675911,  name:'Spencer Strider', pos:'SP · Braves'    },
-  { id:665742,  name:'Juan Soto',       pos:'OF · Mets'      },
-  { id:607208,  name:'Trea Turner',     pos:'SS · Phillies'  },
-  { id:624413,  name:'Pete Alonso',     pos:'1B · Mets'      },
+  // Row 1 — the immortals
+  { id:592450,  name:'Aaron Judge',       pos:'OF · Yankees'    },
+  { id:660271,  name:'Shohei Ohtani',     pos:'DH/P · Dodgers'  },
+  { id:545361,  name:'Mike Trout',        pos:'OF · Angels'     },
+  { id:605141,  name:'Mookie Betts',      pos:'OF · Dodgers'    },
+  { id:518692,  name:'Freddie Freeman',   pos:'1B · Dodgers'    },
+  { id:660670,  name:'Ronald Acuña Jr.',  pos:'OF · Braves'     },
+  { id:547180,  name:'Bryce Harper',      pos:'1B · Phillies'   },
+  { id:665742,  name:'Juan Soto',         pos:'OF · Mets'       },
+  // Row 2 — All-Stars
+  { id:607208,  name:'Trea Turner',       pos:'SS · Phillies'   },
+  { id:624413,  name:'Pete Alonso',       pos:'1B · Mets'       },
+  { id:682998,  name:'Gunnar Henderson',  pos:'SS · Orioles'    },
+  { id:671096,  name:'Bobby Witt Jr.',    pos:'SS · Royals'     },
+  { id:669016,  name:'Yordan Alvarez',    pos:'DH · Astros'     },
+  { id:663728,  name:'Julio Rodriguez',   pos:'OF · Mariners'   },
+  { id:666971,  name:'Corbin Carroll',    pos:'OF · D-backs'    },
+  { id:641355,  name:'José Ramírez',      pos:'3B · Guardians'  },
+  // Row 3 — Elite arms + rising stars
+  { id:694973,  name:'Paul Skenes',       pos:'SP · Pirates'    },
+  { id:675911,  name:'Spencer Strider',   pos:'SP · Braves'     },
+  { id:543037,  name:'Gerrit Cole',       pos:'SP · Yankees'    },
+  { id:656756,  name:'Zack Wheeler',      pos:'SP · Phillies'   },
+  { id:694497,  name:'Jackson Chourio',   pos:'OF · Brewers'    },
+  { id:691406,  name:'Jackson Holliday',  pos:'SS · Orioles'    },
+  { id:677951,  name:'Junior Caminero',   pos:'3B · Rays'       },
+  { id:680757,  name:'Wyatt Langford',    pos:'OF · Rangers'    },
 ];
 
 const s = {
