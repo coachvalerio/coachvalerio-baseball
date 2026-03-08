@@ -1,8 +1,20 @@
 // pages/api/arsenal.js
-// Three sources merged:
-// A: pitch-arsenal-stats  → usage%, whiff%, K%, BA, SLG, wOBA (per pitch type, server-filtered)
-// B: statcast_search       → avg_speed, avg_spin, pfx_x, pfx_z (per pitch type, server-filtered)
-// C: pitch-arsenals        → avg_speed fallback (wide format, one row per pitcher)
+// Confirmed column sources (from debug responses):
+//
+// Source A — pitch-arsenal-stats?player_id={id}
+//   cols: last_name, first_name, player_id(=team!), pitch_type, pitch_name,
+//         pitches, pitch_usage, pa, ba, slg, woba, whiff_percent, k_percent,
+//         put_away, est_ba, est_slg, est_woba, hard_hit_percent
+//   → outcome stats per pitch type
+//
+// Source C — pitch-arsenals (full leaderboard, find row by `pitcher` int col)
+//   cols: last_name, first_name, pitcher, ff_avg_speed, si_avg_speed, ...
+//   → speed per pitch type (wide format, one row per pitcher)
+//
+// Source D — pitch-movement?pitch_type={PT} (one fetch per pitch type)
+//   cols: player_id/pitcher_id, pitch_type, avg_speed, avg_spin_rate,
+//         avg_break_x, avg_break_z (or pitcher_break_x/z)
+//   → velo + spin + break per pitch type
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -11,18 +23,14 @@ const HEADERS = {
   'Referer': 'https://baseballsavant.mlb.com/',
 };
 
-// Minimum pitches for a pitch type to appear. Eliminates Statcast misclassifications.
-// 0.8% of a starter's ~3000 pitches = ~24. Set to 25.
-const MIN_PITCHES = 25;
-
 const PITCH_NAMES = {
   FF:'4-Seam Fastball', SI:'Sinker', FC:'Cutter', SL:'Slider', ST:'Sweeper',
   CU:'Curveball', KC:'Knuckle Curve', CH:'Changeup', FS:'Split-Finger',
-  KN:'Knuckleball', SV:'Slurve', FO:'Forkball', FA:'Fastball', SC:'Screwball',
+  KN:'Knuckleball', SV:'Slurve', FO:'Forkball', FA:'Fastball',
 };
 
-// pitch-arsenals wide-format column prefix per pitch type
-const PITCH_COL = {
+// pitch-arsenals wide-format speed column prefix per pitch type
+const SPEED_COL = {
   FF:'ff', SI:'si', FC:'fc', SL:'sl', ST:'st', CU:'cu',
   KC:'kc', CH:'ch', FS:'fs', KN:'kn', SV:'sv', FO:'fo',
 };
@@ -58,11 +66,11 @@ const str = (r,...keys) => {
   }
   return null;
 };
-
-const wavg = (rows, field, wField='pitches') => {
+const wavg = (rows, field, wField) => {
   let num=0, den=0;
   for (const r of rows){
-    const v=flt(r,field), w=flt(r,wField)??1;
+    const v = flt(r,field);
+    const w = wField ? (flt(r,wField)??1) : 1;
     if(v!==null){ num+=v*w; den+=w; }
   }
   return den>0 ? num/den : null;
@@ -72,34 +80,28 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
   const { id, year=new Date().getFullYear(), debug } = req.query;
   if (!id) return res.status(400).json({ error:'Missing player id' });
+  const numId = parseInt(id, 10);
 
-  // Fetch all three sources in parallel
-  const [resA, resB, resC] = await Promise.allSettled([
-    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${year}&team=&min=0&player_id=${id}&csv=true`,
-      { headers:HEADERS, signal:AbortSignal.timeout(10000) }).then(r=>r.text()),
-    fetch(`https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfSeas=${year}%7C&player_type=pitcher&pitchers_lookup%5B%5D=${id}&group_by=name-pitch&sort_col=pitches&sort_order=desc&min_pitches=0`,
-      { headers:HEADERS, signal:AbortSignal.timeout(10000) }).then(r=>r.text()),
-    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${year}&position=&team=&min=0&player_id=${id}&csv=true`,
-      { headers:HEADERS, signal:AbortSignal.timeout(10000) }).then(r=>r.text()),
+  // ── Step 1: Source A + Source C in parallel ────────────────────────────────
+  const [resA, resC] = await Promise.allSettled([
+    fetch(
+      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${year}&team=&min=0&player_id=${id}&csv=true`,
+      { headers:HEADERS, signal:AbortSignal.timeout(10000) }
+    ).then(r=>r.text()),
+    fetch(
+      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${year}&position=&team=&min=0&csv=true`,
+      { headers:HEADERS, signal:AbortSignal.timeout(10000) }
+    ).then(r=>r.text()),
   ]);
 
-  const textA = resA.status==='fulfilled' ? resA.value : '';
-  const textB = resB.status==='fulfilled' ? resB.value : '';
-  const textC = resC.status==='fulfilled' ? resC.value : '';
+  const { headers:hA, rows:rawA } = parseCSV(resA.status==='fulfilled' ? resA.value : '');
+  const { headers:hC, rows:rawC } = parseCSV(resC.status==='fulfilled' ? resC.value : '');
 
-  const { headers:hA, rows:rawA } = parseCSV(textA);
-  const { headers:hB, rows:rawB } = parseCSV(textB);
-  const { headers:hC, rows:rawC } = parseCSV(textC);
+  // ── Source C: find THIS player's row ──────────────────────────────────────
+  // Column is `pitcher` (integer), not `player_id`
+  const playerSpeedRow = rawC.find(r => parseInt(r['pitcher'],10) === numId) ?? {};
 
-  if (debug) {
-    return res.status(200).json({
-      A:{ cols:hA, sample:rawA[0]??null },
-      B:{ cols:hB, sample:rawB[0]??null },
-      C:{ cols:hC, sample:rawC[0]??null },
-    });
-  }
-
-  // ── Source A: aggregate by pitch_type ─────────────────────────────────────
+  // ── Source A: group by pitch_type, compute pitch_usage (0–1 float) ─────────
   const groupsA = {};
   for (const r of rawA) {
     const pt = (r['pitch_type']??'').trim();
@@ -107,59 +109,99 @@ export default async function handler(req, res) {
     if (!groupsA[pt]) groupsA[pt] = [];
     groupsA[pt].push(r);
   }
-  const totalPitches = Object.values(groupsA).reduce((s,g) =>
-    s + g.reduce((gs,r) => gs+(flt(r,'pitches')??1), 0), 0);
 
-  // ── Source B: index by pitch_type for velo/spin/break ─────────────────────
-  const statsB = {}; // pitch_type → row
-  for (const r of rawB) {
-    const pt = (r['pitch_type']??'').trim();
-    if (pt) statsB[pt] = r;
+  // pitch_usage is a 0–1 decimal per row in Source A (e.g. 0.0432 = 4.32%)
+  // sum per pitch type to get total usage
+  const usageByType = {};
+  let totalUsage = 0;
+  for (const [pt, rows] of Object.entries(groupsA)) {
+    const u = rows.reduce((s,r) => s+(flt(r,'pitch_usage')??0), 0);
+    usageByType[pt] = u;
+    totalUsage += u;
   }
 
-  // ── Source C: wide-format row for speed fallback ───────────────────────────
-  const wideRow = rawC[0] ?? {};
+  // Determine which pitch types this player actually throws (>= 1% usage)
+  const activePitchTypes = Object.entries(usageByType)
+    .filter(([pt, u]) => totalUsage > 0 ? (u/totalUsage)*100 >= 1.0 : u > 0)
+    .map(([pt]) => pt);
 
-  // ── Merge and build final pitch objects ───────────────────────────────────
-  const pitches = Object.entries(groupsA).map(([pt, rows]) => {
-    const count = rows.reduce((s,r) => s+(flt(r,'pitches')??1), 0);
-    const bRow  = statsB[pt] ?? {};
-    const col   = PITCH_COL[pt];
+  if (debug) {
+    return res.status(200).json({
+      A_cols: hA, A_sample: rawA[0]??null, A_rowCount: rawA.length,
+      C_cols: hC, C_playerRow: playerSpeedRow,
+      activePitchTypes, usageByType,
+    });
+  }
 
-    // Velo: prefer statcast_search (release_speed), fallback pitch-arsenals wide column
-    const speed = flt(bRow,'release_speed','avg_speed')
-      ?? (col ? flt(wideRow,`${col}_avg_speed`) : null);
+  // ── Step 2: Fetch pitch-movement for each active pitch type (spin + break) ─
+  const movementByType = {};
+  if (activePitchTypes.length > 0) {
+    const moveResults = await Promise.allSettled(
+      activePitchTypes.map(pt =>
+        fetch(
+          `https://baseballsavant.mlb.com/leaderboard/pitch-movement?season=${year}&team=&min=0&type=pitcher&pitch_type=${pt}&hand=&csv=true`,
+          { headers:HEADERS, signal:AbortSignal.timeout(10000) }
+        ).then(r=>r.text())
+          .then(text => ({ pt, ...parseCSV(text) }))
+          .catch(() => ({ pt, headers:[], rows:[] }))
+      )
+    );
 
-    // Spin: statcast_search has release_spin_rate
-    const spin  = flt(bRow,'release_spin_rate','avg_spin_rate');
+    for (const r of moveResults) {
+      if (r.status !== 'fulfilled') continue;
+      const { pt, rows } = r.value;
+      // Find this player's row — try multiple possible ID column names
+      const playerRow = rows.find(row => {
+        for (const col of ['player_id','pitcher_id','pitcher','mlb_id','id']) {
+          if (parseInt(row[col],10) === numId) return true;
+        }
+        return false;
+      });
+      if (playerRow) movementByType[pt] = playerRow;
+    }
+  }
 
-    // Break: statcast_search pfx_x/pfx_z in feet → convert to inches
-    const pfxX  = flt(bRow,'pfx_x');
-    const pfxZ  = flt(bRow,'pfx_z');
-    const breakX = pfxX !== null ? pfxX*12 : null;
-    const breakZ = pfxZ !== null ? pfxZ*12 : null;
+  // ── Step 3: Build final pitch objects ─────────────────────────────────────
+  const pitches = Object.entries(groupsA)
+    .filter(([pt]) => activePitchTypes.includes(pt)) // >= 1% usage filter
+    .map(([pt, rows]) => {
+      const usageRaw = usageByType[pt] ?? 0;
+      const usage    = totalUsage > 0 ? (usageRaw/totalUsage)*100 : null;
+      const pitchCount = rows.reduce((s,r) => s+(flt(r,'pitches')??1), 0);
+      const col      = SPEED_COL[pt];
+      const moveRow  = movementByType[pt] ?? {};
 
-    return {
-      pitch_type:   pt,
-      pitch_name:   str(rows[0],'pitch_name','pitch_type_name') ?? PITCH_NAMES[pt] ?? pt,
-      pitch_count:  count,
-      usage_pct:    totalPitches>0 ? (count/totalPitches)*100 : null,
-      avg_speed:    speed,
-      avg_spin:     spin,
-      avg_break_x:  breakX,
-      avg_break_z:  breakZ,
-      whiff_pct:    wavg(rows,'whiff_percent'),
-      k_pct:        wavg(rows,'k_percent'),
-      ba:           wavg(rows,'ba'),
-      slg:          wavg(rows,'slg'),
-      woba:         wavg(rows,'woba'),
-      xwoba:        wavg(rows,'est_woba') ?? wavg(rows,'xwoba'),
-      put_away:     wavg(rows,'put_away'),
-      hard_hit_pct: wavg(rows,'hard_hit_percent'),
-    };
-  })
-  .filter(p => p.pitch_count >= MIN_PITCHES)   // ← kills misclassifications
-  .sort((a,b) => b.pitch_count - a.pitch_count);
+      // Velo: pitch-movement → pitch-arsenals wide speed column
+      const speed = flt(moveRow,'avg_speed','release_speed')
+        ?? (col ? flt(playerSpeedRow,`${col}_avg_speed`) : null);
 
-  return res.status(200).json({ pitches, source:'merged' });
+      // Spin: pitch-movement
+      const spin = flt(moveRow,'avg_spin_rate','spin_rate','release_spin_rate');
+
+      // Break: pitch-movement (inches — try both column name variants)
+      const breakX = flt(moveRow,'avg_break_x','pitcher_break_x','pfx_x_inches');
+      const breakZ = flt(moveRow,'avg_break_z','pitcher_break_z','pfx_z_inches','avg_break');
+
+      return {
+        pitch_type:   pt,
+        pitch_name:   str(rows[0],'pitch_name','pitch_type_name') ?? PITCH_NAMES[pt] ?? pt,
+        pitch_count:  pitchCount,
+        usage_pct:    usage,
+        avg_speed:    speed,
+        avg_spin:     spin,
+        avg_break_x:  breakX,
+        avg_break_z:  breakZ,
+        whiff_pct:    wavg(rows,'whiff_percent'),
+        k_pct:        wavg(rows,'k_percent'),
+        ba:           wavg(rows,'ba'),
+        slg:          wavg(rows,'slg'),
+        woba:         wavg(rows,'woba'),
+        xwoba:        wavg(rows,'est_woba') ?? wavg(rows,'xwoba'),
+        put_away:     wavg(rows,'put_away'),
+        hard_hit_pct: wavg(rows,'hard_hit_percent'),
+      };
+    })
+    .sort((a,b) => (b.usage_pct??0) - (a.usage_pct??0));
+
+  return res.status(200).json({ pitches, source:'arsenal_stats+movement' });
 }
