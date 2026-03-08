@@ -47,7 +47,7 @@ const str = (r, ...keys) => {
 function normalizeRow(r) {
   const pitchType = (r['pitch_type'] ?? '').trim();
   const pitchName = str(r, 'pitch_type_name', 'pitch_name') ?? pitchType ?? '—';
-  const pitchPct  = flt(r, 'pitch_percent');
+  const pitchPct  = flt(r, 'pitch_percent', 'pitch_usage');
   const pfxX      = flt(r, 'pfx_x'); // statcast_search returns feet
   const pfxZ      = flt(r, 'pfx_z');
 
@@ -73,8 +73,11 @@ function normalizeRow(r) {
 // Find the player_id column name (varies between endpoints)
 function getPlayerId(r) {
   for (const k of ['player_id', 'pitcher', 'batter', 'mlbam_id', 'id']) {
-    const v = r[k];
-    if (v && /^\d+$/.test(v.trim())) return v.trim();
+    const v = (r[k] ?? '').trim();
+    if (!v) continue;
+    // Savant sometimes stores IDs as floats: "554430.0" — parse and floor
+    const parsed = Math.floor(parseFloat(v));
+    if (!isNaN(parsed) && parsed > 0) return String(parsed);
   }
   return null;
 }
@@ -96,7 +99,9 @@ export default async function handler(req, res) {
     const text1 = await r1.text();
     const { headers: h1, rows: all1 } = parseCSV(text1);
 
-    results.attempts.push({ url: url1, status: r1.status, totalRows: all1.length, cols: h1.slice(0, 15) });
+    // Sample some player_id values for debugging
+    const sampleIds = all1.slice(0, 5).map(r => ({ raw: r['player_id'], parsed: getPlayerId(r) }));
+    results.attempts.push({ url: url1, status: r1.status, totalRows: all1.length, cols: h1.slice(0, 15), sampleIds });
 
     // Filter rows for this specific player
     const playerRows = all1.filter(r => getPlayerId(r) === String(id));
