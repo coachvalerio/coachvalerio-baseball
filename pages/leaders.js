@@ -44,10 +44,190 @@ const PITCHING_BOARDS = [
   { key: 'strikeoutWalkRatio',           label: 'K/BB RATIO',      abbr: 'K/BB'  },
 ];
 
-const STATCAST_BOARDS = [
-  { key: 'velo',     label: 'AVG FASTBALL VELOCITY', abbr: 'MPH' },
-  { key: 'movement', label: 'MOST PITCH MOVEMENT',   abbr: 'IN.' },
+const STATCAST_PITCH_TYPES = [
+  { key:'FF', label:'4-Seam FB' },
+  { key:'SI', label:'Sinker'    },
+  { key:'FC', label:'Cutter'    },
+  { key:'SL', label:'Slider'    },
+  { key:'ST', label:'Sweeper'   },
+  { key:'CU', label:'Curveball' },
+  { key:'CH', label:'Changeup'  },
+  { key:'FS', label:'Split-Finger'},
 ];
+
+function parseCSVBrowser(text) {
+  if (!text?.trim()) return [];
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals=[]; let cur='', inQ=false;
+    for (const ch of line) {
+      if (ch==='"'){ inQ=!inQ; }
+      else if (ch===',' && !inQ){ vals.push(cur.trim()); cur=''; }
+      else cur+=ch;
+    }
+    vals.push(cur.trim());
+    const obj={};
+    headers.forEach((h,i)=>{ obj[h]=vals[i]??''; });
+    return obj;
+  });
+}
+
+function parseSavantName(r) {
+  if (r['last_name'] && r['first_name']) return `${r['first_name'].trim()} ${r['last_name'].trim()}`;
+  const raw = r['player_name']??'';
+  if (raw.includes(',')){ const[l,f]=raw.split(',').map(s=>s.trim()); return `${f} ${l}`; }
+  return raw||'—';
+}
+
+function StatcastLeaders({ season, onPlayer }) {
+  const [veloData,   setVeloData]   = useState([]);
+  const [moveData,   setMoveData]   = useState([]);
+  const [pitchType,  setPitchType]  = useState('FF');
+  const [loadingV,   setLoadingV]   = useState(true);
+  const [loadingM,   setLoadingM]   = useState(true);
+  const [errorV,     setErrorV]     = useState(false);
+  const [errorM,     setErrorM]     = useState(false);
+
+  // Velocity — pitch arsenals leaderboard, sorted by avg fastball velo
+  useEffect(() => {
+    if (season < 2017) { setVeloData([]); setLoadingV(false); return; }
+    setLoadingV(true); setErrorV(false);
+    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${season}&position=&team=&min=50&csv=true`)
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(text => {
+        const rows = parseCSVBrowser(text)
+          .filter(r => parseFloat(r['avg_speed']??r['velo']) > 0)
+          .sort((a,b) => parseFloat((b['avg_speed']??b['velo'])??0) - parseFloat((a['avg_speed']??a['velo'])??0))
+          .slice(0,10)
+          .map((r,i) => ({
+            rank: i+1,
+            name: parseSavantName(r),
+            team: r['team_name_abbrev']??'—',
+            playerId: r['player_id'] ? parseInt(r['player_id']) : null,
+            value: `${parseFloat(r['avg_speed']??r['velo']).toFixed(1)} mph`,
+            sub: r['pitch_name']??r['pitch_type']??'',
+          }));
+        setVeloData(rows); setLoadingV(false);
+      })
+      .catch(() => { setErrorV(true); setLoadingV(false); });
+  }, [season]);
+
+  // Movement — pitch-movement leaderboard, filterable by pitch type
+  useEffect(() => {
+    if (season < 2017) { setMoveData([]); setLoadingM(false); return; }
+    setLoadingM(true); setErrorM(false);
+    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-movement?season=${season}&team=&min=250&type=pitcher&pitch_type=${pitchType}&hand=&csv=true`)
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(text => {
+        const rows = parseCSVBrowser(text)
+          .filter(r => parseFloat((r['avg_break']??r['pitcher_break_z'])??0) !== 0)
+          .sort((a,b) => Math.abs(parseFloat((b['avg_break']??b['pitcher_break_z'])??0)) - Math.abs(parseFloat((a['avg_break']??a['pitcher_break_z'])??0)))
+          .slice(0,10)
+          .map((r,i) => ({
+            rank: i+1,
+            name: parseSavantName(r),
+            team: r['team_name_abbrev']??'—',
+            playerId: r['player_id'] ? parseInt(r['player_id']) : null,
+            value: `${Math.abs(parseFloat(r['avg_break']??r['pitcher_break_z']??0)).toFixed(1)}"`,
+            sub: STATCAST_PITCH_TYPES.find(p=>p.key===pitchType)?.label??pitchType,
+          }));
+        setMoveData(rows); setLoadingM(false);
+      })
+      .catch(() => { setErrorM(true); setLoadingM(false); });
+  }, [season, pitchType]);
+
+  if (season < 2017) {
+    return (
+      <div style={{ textAlign:'center', padding:'3rem', color:'#3a3f52', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'1rem', letterSpacing:'.1em' }}>
+        STATCAST DATA AVAILABLE FROM 2017
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Velo board */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:'1rem' }}>
+        <LeaderBoard
+          board={{ key:'velo', label:'AVG FASTBALL VELOCITY', abbr:'MPH' }}
+          leaders={loadingV ? null : veloData}
+          loading={loadingV}
+          error={errorV}
+          onPlayer={onPlayer}
+        />
+
+        {/* Movement board with pitch type filter */}
+        <div style={{ background:'#0d1117', borderRadius:'12px', overflow:'hidden', border:'1px solid #1e2028' }}>
+          <div style={{ background:'#080c12', padding:'.65rem 1rem', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid #1e2028', flexWrap:'wrap', gap:'.5rem' }}>
+            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.63rem', fontWeight:700, letterSpacing:'.14em', color:'#5c6070' }}>
+              MOST PITCH MOVEMENT
+            </span>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'.25rem' }}>
+              {STATCAST_PITCH_TYPES.map(pt => (
+                <button key={pt.key} onClick={() => setPitchType(pt.key)}
+                  style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.06em', padding:'.18rem .4rem', borderRadius:'4px', border:`1px solid ${pitchType===pt.key?'#00c2a8':'#1e2028'}`, background: pitchType===pt.key?'#00c2a822':'transparent', color: pitchType===pt.key?'#00c2a8':'#5c6070', cursor:'pointer', transition:'all .15s' }}>
+                  {pt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {loadingM ? (
+            [...Array(10)].map((_,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:'.6rem', padding:'.45rem .9rem', borderTop: i>0?'1px solid #1e2028':'none' }}>
+                <div className="skeleton" style={{ width:'18px', height:'18px', borderRadius:'50%' }} />
+                <div className="skeleton" style={{ width:'32px', height:'32px', borderRadius:'50%' }} />
+                <div style={{ flex:1 }}>
+                  <div className="skeleton" style={{ width:'65%', height:'10px', borderRadius:'3px', marginBottom:'4px' }} />
+                  <div className="skeleton" style={{ width:'30%', height:'9px', borderRadius:'3px' }} />
+                </div>
+                <div className="skeleton" style={{ width:'44px', height:'14px', borderRadius:'4px' }} />
+              </div>
+            ))
+          ) : errorM ? (
+            <div style={{ padding:'2rem', textAlign:'center', color:'#3a3f52', fontSize:'.75rem' }}>
+              Could not load from Baseball Savant
+            </div>
+          ) : moveData.length === 0 ? (
+            <div style={{ padding:'2rem', textAlign:'center', color:'#3a3f52', fontSize:'.75rem' }}>
+              No data for {pitchType} in {season}
+            </div>
+          ) : moveData.map((p,i) => (
+            <div key={i}
+              onClick={() => p.playerId && onPlayer(p.playerId)}
+              style={{ display:'flex', alignItems:'center', gap:'.55rem', padding:'.4rem .85rem', borderTop: i>0?'1px solid #12161e':'none', cursor: p.playerId?'pointer':'default', transition:'background .12s' }}
+              onMouseEnter={e=>{ if(p.playerId) e.currentTarget.style.background='#13171f'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; }}>
+              <span style={{ fontFamily:"'Anton',sans-serif", fontSize:'.72rem', color: i===0?'#00c2a8':'#3a3f52', width:'16px', textAlign:'center', flexShrink:0 }}>{p.rank}</span>
+              <div style={{ width:'32px', height:'32px', borderRadius:'50%', overflow:'hidden', flexShrink:0, background:'#1e2028', border: i===0?'2px solid #00c2a8':'2px solid #1e2028' }}>
+                {p.playerId ? (
+                  <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_32,q_auto:best/v1/people/${p.playerId}/headshot/67/current`}
+                    width={32} height={32} style={{ objectFit:'cover', width:'100%', height:'100%' }}
+                    onError={e=>e.target.style.opacity=0} />
+                ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.6rem', color:'#3a3f52' }}>?</div>}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontFamily:"'Inter',sans-serif", fontSize:'.77rem', fontWeight:600, color:'#e8ebf5', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:'.25rem', marginTop:'1px' }}>
+                  {p.team && p.team!=='—' && <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', fontWeight:700, color:'#fff', background: TEAM_COLORS[p.team]??'#1e2028', padding:'0 .28rem', borderRadius:'3px' }}>{p.team}</span>}
+                  {p.sub && <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.57rem', color:'#3a3f52' }}>{p.sub}</span>}
+                </div>
+              </div>
+              <span style={{ fontFamily:"'Anton',sans-serif", fontSize: i===0?'.95rem':'.82rem', color: i===0?'#00c2a8':'#c8cce0', flexShrink:0, minWidth:'42px', textAlign:'right' }}>{p.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop:'1rem', padding:'.6rem 1rem', background:'#0a0e14', borderRadius:'8px', border:'1px solid #1e2028' }}>
+        <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.1em', color:'#3a3f52' }}>
+          DATA VIA BASEBALL SAVANT · FETCHED LIVE IN YOUR BROWSER · MIN 50 PITCHES (VELO) / 250 PITCHES (MOVEMENT)
+        </span>
+      </div>
+    </div>
+  );
+}
 
 const TEAM_COLORS = {
   NYY:'#003087',LAD:'#005A9C',BOS:'#BD3039',CHC:'#0E3386',SFG:'#FD5A1E',
@@ -81,8 +261,8 @@ function SkeletonBoard() {
   );
 }
 
-function LeaderBoard({ board, leaders, onPlayer }) {
-  const isEmpty = !leaders || leaders.length === 0;
+function LeaderBoard({ board, leaders, loading, onPlayer }) {
+  const isEmpty = !loading && (!leaders || leaders.length === 0);
   const accent  = '#00c2a8';
   return (
     <div style={{ background:'#0d1117', borderRadius:'12px', overflow:'hidden', border:'1px solid #1e2028', display:'flex', flexDirection:'column' }}>
@@ -174,8 +354,8 @@ export default function LeadersPage() {
 
   const goPlayer = id => router.push(`/players/${id}`);
 
-  const boards = tab === 'batting' ? BATTING_BOARDS : tab === 'pitching' ? PITCHING_BOARDS : STATCAST_BOARDS;
-  const gridCols = tab === 'statcast' ? 'repeat(auto-fill,minmax(340px,1fr))' : 'repeat(auto-fill,minmax(280px,1fr))';
+  const boards = tab === 'batting' ? BATTING_BOARDS : PITCHING_BOARDS;
+  const gridCols = 'repeat(auto-fill,minmax(280px,1fr))';
 
   return (
     <>
@@ -250,7 +430,11 @@ export default function LeadersPage() {
           </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns: gridCols, gap:'1rem' }}>
-            {boards.map(board => (
+            {tab === 'statcast' ? (
+              <div style={{ gridColumn:'1/-1' }}>
+                <StatcastLeaders season={season} onPlayer={goPlayer} />
+              </div>
+            ) : boards.map(board => (
               <LeaderBoard key={board.key} board={board} leaders={data[board.key] ?? []} onPlayer={goPlayer} />
             ))}
           </div>

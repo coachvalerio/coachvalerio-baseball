@@ -178,6 +178,7 @@ export default function PlayerPage() {
     { id: 'season',     label: `${SEASON} Season` },
     { id: 'highlights', label: '▶ Highlights' },
     { id: 'savant',     label: 'Statcast / Savant' },
+    ...(isPit ? [{ id: 'arsenal', label: '⚾ Arsenal' }] : []),
     { id: 'career',     label: 'Career' },
     { id: 'trends',     label: 'Trends & Odds' },
     { id: 'deep',       label: isPit ? 'By Inning' : 'Deep Stats' },
@@ -316,6 +317,11 @@ export default function PlayerPage() {
         {/* ── HIGHLIGHTS ── */}
         {activeTab==='highlights' && (
           <HighlightsTab id={id} player={player} highlights={highlights} colors={colors} />
+        )}
+
+        {/* ── PITCH ARSENAL (pitchers only) ── */}
+        {activeTab==='arsenal' && isPit && (
+          <ArsenalTab id={id} colors={colors} player={player} />
         )}
 
         {/* ── DEEP STATS (HR log / vel splits / inning splits) ── */}
@@ -587,6 +593,343 @@ function SavantTileView({ tiles, data, colors }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════
+// PITCH ARSENAL TAB — full pitch mix, velocity, movement, zone chart
+// ════════════════════════════════════════════════════════
+const PITCH_COLORS = {
+  'FF':'#e63535','4-Seam Fastball':'#e63535',
+  'SI':'#f5a623','Sinker':'#f5a623',
+  'FC':'#f5de0a','Cutter':'#f5de0a',
+  'SL':'#2ed47a','Slider':'#2ed47a',
+  'ST':'#00c2a8','Sweeper':'#00c2a8',
+  'CU':'#007acc','Curveball':'#007acc',
+  'KC':'#6b7ff0','Knuckle Curve':'#6b7ff0',
+  'CH':'#c478f5','Changeup':'#c478f5',
+  'FS':'#e078c8','Split-Finger':'#e078c8',
+  'FO':'#a0a0a0','Forkball':'#a0a0a0',
+  'KN':'#ffffff','Knuckleball':'#ffffff',
+};
+const pitchColor = (name) => PITCH_COLORS[name] ?? '#5c6070';
+
+function parseCSVClient(text) {
+  if (!text?.trim()) return [];
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals=[]; let cur='', inQ=false;
+    for (const ch of line) {
+      if (ch==='"') { inQ=!inQ; }
+      else if (ch===',' && !inQ) { vals.push(cur.trim()); cur=''; }
+      else cur+=ch;
+    }
+    vals.push(cur.trim());
+    const obj={};
+    headers.forEach((h,i)=>{ obj[h]=vals[i]??''; });
+    return obj;
+  });
+}
+
+function MovementChart({ pitches }) {
+  if (!pitches?.length) return null;
+  // SVG scatter: x = horizontal break (pfx_x), y = vertical break (pfx_z)
+  const W=320, H=280, cx=W/2, cy=H/2;
+  const scale = 8; // inches per pixel (±20in range on each axis)
+
+  return (
+    <div>
+      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.14em', color:'#5c6070', marginBottom:'.5rem' }}>
+        PITCH MOVEMENT PROFILE (PITCHER POV)
+      </div>
+      <svg width={W} height={H} style={{ background:'#080c12', borderRadius:'10px', border:'1px solid #1e2028', display:'block' }}>
+        {/* Grid lines */}
+        <line x1={cx} y1={0} x2={cx} y2={H} stroke="#1e2028" strokeWidth={1}/>
+        <line x1={0} y1={cy} x2={W} y2={cy} stroke="#1e2028" strokeWidth={1}/>
+        {[-20,-10,10,20].map(v => (
+          <g key={v}>
+            <line x1={cx+v*scale} y1={0} x2={cx+v*scale} y2={H} stroke="#12161e" strokeWidth={1} strokeDasharray="3,3"/>
+            <line x1={0} y1={cy-v*scale} x2={W} y2={cy-v*scale} stroke="#12161e" strokeWidth={1} strokeDasharray="3,3"/>
+          </g>
+        ))}
+        {/* Axis labels */}
+        <text x={W-4} y={cy-4} textAnchor="end" fill="#3a3f52" fontSize={8} fontFamily="Barlow Condensed">ARM SIDE</text>
+        <text x={4} y={cy-4} textAnchor="start" fill="#3a3f52" fontSize={8} fontFamily="Barlow Condensed">GLOVE SIDE</text>
+        <text x={cx+4} y={12} textAnchor="start" fill="#3a3f52" fontSize={8} fontFamily="Barlow Condensed">RISE</text>
+        <text x={cx+4} y={H-4} textAnchor="start" fill="#3a3f52" fontSize={8} fontFamily="Barlow Condensed">DROP</text>
+        {/* Pitch dots */}
+        {pitches.map((p, i) => {
+          const bx = parseFloat(p.avg_pfx_x ?? p.pfx_x ?? 0);
+          const bz = parseFloat(p.avg_pfx_z ?? p.pfx_z ?? 0);
+          if (isNaN(bx) || isNaN(bz)) return null;
+          const px = cx + bx * scale;
+          const py = cy - bz * scale;
+          const col = pitchColor(p.pitch_type ?? p.pitch_name);
+          return (
+            <g key={i}>
+              <circle cx={px} cy={py} r={10} fill={col} fillOpacity={0.18} stroke={col} strokeWidth={1.5}/>
+              <text x={px} y={py+4} textAnchor="middle" fill={col} fontSize={8} fontFamily="Barlow Condensed" fontWeight={700}>
+                {p.pitch_type ?? p.pitch_name?.split(' ').map(w=>w[0]).join('')}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      {/* Legend */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem', marginTop:'.5rem' }}>
+        {pitches.map((p,i) => (
+          <div key={i} style={{ display:'flex', alignItems:'center', gap:'.3rem' }}>
+            <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: pitchColor(p.pitch_type ?? p.pitch_name) }} />
+            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', color:'#9e9ea0' }}>{p.pitch_name ?? p.pitch_type}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StrikeZoneChart({ pitches, selectedPitch }) {
+  // SVG strike zone with pitch location dots — filtered by pitch type
+  const W=240, H=260;
+  // Strike zone: roughly x -0.83 to 0.83 ft, z 1.5 to 3.5 ft
+  const zoneX1=60, zoneX2=180, zoneY1=40, zoneY2=200;
+  const toX = x => zoneX1 + (parseFloat(x)+0.83)/(1.66)*(zoneX2-zoneX1);
+  const toY = z => zoneY2 - (parseFloat(z)-1.5)/(2.0)*(zoneY2-zoneY1);
+
+  const dots = (pitches ?? []).filter(p => {
+    if (selectedPitch && p.pitch_type !== selectedPitch && p.pitch_name !== selectedPitch) return false;
+    return !isNaN(parseFloat(p.plate_x)) && !isNaN(parseFloat(p.plate_z));
+  }).slice(0, 200);
+
+  const col = selectedPitch ? pitchColor(selectedPitch) : '#00c2a8';
+
+  return (
+    <div>
+      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.14em', color:'#5c6070', marginBottom:'.5rem' }}>
+        PITCH LOCATION (CATCHER VIEW)
+      </div>
+      <svg width={W} height={H} style={{ background:'#080c12', borderRadius:'10px', border:'1px solid #1e2028', display:'block' }}>
+        {/* Home plate outline */}
+        <polygon points={`${W/2-18},${H-20} ${W/2+18},${H-20} ${W/2+18},${H-35} ${W/2},${H-22} ${W/2-18},${H-35}`}
+          fill="none" stroke="#2a2f3f" strokeWidth={1}/>
+        {/* Strike zone */}
+        <rect x={zoneX1} y={zoneY1} width={zoneX2-zoneX1} height={zoneY2-zoneY1}
+          fill="none" stroke="#3a3f52" strokeWidth={1.5}/>
+        {/* Zone grid */}
+        {[1,2].map(i=>(
+          <g key={i}>
+            <line x1={zoneX1+(zoneX2-zoneX1)/3*i} y1={zoneY1} x2={zoneX1+(zoneX2-zoneX1)/3*i} y2={zoneY2} stroke="#1e2028" strokeWidth={1}/>
+            <line x1={zoneX1} y1={zoneY1+(zoneY2-zoneY1)/3*i} x2={zoneX2} y2={zoneY1+(zoneY2-zoneY1)/3*i} stroke="#1e2028" strokeWidth={1}/>
+          </g>
+        ))}
+        {/* Pitch dots */}
+        {dots.map((p,i) => (
+          <circle key={i}
+            cx={toX(p.plate_x)} cy={toY(p.plate_z)}
+            r={3} fill={col} fillOpacity={0.4} stroke={col} strokeOpacity={0.7} strokeWidth={0.5}/>
+        ))}
+        {/* Labels */}
+        <text x={W/2} y={H-5} textAnchor="middle" fill="#3a3f52" fontSize={7} fontFamily="Barlow Condensed">HOME PLATE</text>
+        <text x={zoneX1-2} y={(zoneY1+zoneY2)/2} textAnchor="end" fill="#3a3f52" fontSize={7} fontFamily="Barlow Condensed">HI</text>
+        <text x={zoneX1-2} y={zoneY2+6} textAnchor="end" fill="#3a3f52" fontSize={7} fontFamily="Barlow Condensed">LO</text>
+      </svg>
+      {dots.length === 0 && (
+        <div style={{ fontSize:'.72rem', color:'#3a3f52', marginTop:'.5rem', fontFamily:"'Barlow Condensed',sans-serif" }}>
+          PER-PITCH LOCATION DATA NOT AVAILABLE — SELECT PITCH TYPE
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArsenalTab({ id, colors, player }) {
+  const curYear = new Date().getFullYear();
+  const YEARS = Array.from({ length: curYear - 2017 + 1 }, (_, i) => curYear - i);
+  const [year, setYear] = useState(curYear);
+  const [arsenal, setArsenal] = useState([]);
+  const [pitches, setPitches] = useState([]); // per-pitch rows for location
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selPitch, setSelPitch] = useState(null);
+
+  useEffect(() => {
+    setLoading(true); setArsenal([]); setPitches([]); setError(null);
+
+    // Fetch pitch arsenal stats (aggregated by pitch type) from Savant
+    const arsenalUrl = `https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfSeas=${year}%7C&player_type=pitcher&pitcher_id=${id}&group_by=name-pitch&sort_col=pitches&sort_order=desc&min_pitches=0`;
+
+    fetch(arsenalUrl)
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(text => {
+        const rows = parseCSVClient(text).filter(r => r.pitch_name && r.pitches && parseInt(r.pitches) > 0);
+        setArsenal(rows);
+        setLoading(false);
+        if (rows.length > 0) setSelPitch(rows[0].pitch_type);
+      })
+      .catch(e => { setError('Could not load arsenal data from Baseball Savant.'); setLoading(false); });
+  }, [id, year]);
+
+  const fv = (r, k) => { const v = parseFloat(r[k]); return isNaN(v) ? '—' : v; };
+  const fmt1 = v => typeof v === 'number' ? v.toFixed(1) : v;
+  const fmt3 = v => typeof v === 'number' ? v.toFixed(3) : v;
+  const pct  = v => typeof v === 'number' ? v.toFixed(1)+'%' : v;
+
+  // Total pitches for usage %
+  const totalPitches = arsenal.reduce((s, r) => s + (parseInt(r.pitches) || 0), 0);
+
+  return (
+    <div>
+      {/* Header row */}
+      <div style={{ display:'flex', alignItems:'center', gap:'1rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+        <div style={{ ...s.secLabel, color: colors.primary, marginBottom:0 }}>Pitch Arsenal</div>
+        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'.5rem' }}>
+          <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.7rem', fontWeight:700, letterSpacing:'.12em', color:'#5c6070' }}>SEASON</span>
+          <select value={year} onChange={e=>setYear(parseInt(e.target.value))}
+            style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'6px', color:'#f0f2f8', padding:'.3rem .6rem', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.85rem', fontWeight:700, cursor:'pointer', outline:'none' }}>
+            {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {loading && (
+        <div style={{ textAlign:'center', padding:'3rem', color:'#3a3f52' }}>Loading arsenal data from Baseball Savant…</div>
+      )}
+      {!loading && error && (
+        <div style={{ ...s.card, padding:'1.5rem', textAlign:'center', color:'#5c6070' }}>
+          <div style={{ fontSize:'.85rem' }}>{error}</div>
+          <a href={`https://baseballsavant.mlb.com/savant-player/${id}`} target="_blank" rel="noopener"
+            style={{ color: colors.primary, fontSize:'.8rem', marginTop:'.5rem', display:'block' }}>
+            View on Baseball Savant →
+          </a>
+        </div>
+      )}
+      {!loading && !error && arsenal.length === 0 && (
+        <div style={{ ...s.card, padding:'1.5rem', textAlign:'center', color:'#5c6070' }}>
+          <div>No arsenal data for {year}. Try a different season.</div>
+        </div>
+      )}
+
+      {!loading && arsenal.length > 0 && (
+        <div>
+          {/* ── Pitch mix table ── */}
+          <div style={{ ...s.card, marginBottom:'1.25rem', overflow:'hidden' }}>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:"'Inter',sans-serif", fontSize:'.78rem' }}>
+                <thead>
+                  <tr style={{ background:'#080c12' }}>
+                    {['PITCH','USAGE','VELO','SPIN','H-BREAK','V-BREAK','WHIFF%','K%','BA','SLG','xwOBA'].map(h => (
+                      <th key={h} style={{ padding:'.5rem .65rem', fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', fontWeight:700, letterSpacing:'.1em', color:'#5c6070', textAlign: h==='PITCH' ? 'left' : 'right', whiteSpace:'nowrap', borderBottom:'1px solid #1e2028' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {arsenal.map((r, i) => {
+                    const pName = r.pitch_name ?? r.pitch_type ?? '—';
+                    const col   = pitchColor(r.pitch_type ?? pName);
+                    const usage = totalPitches > 0 ? ((parseInt(r.pitches)||0)/totalPitches*100) : 0;
+                    return (
+                      <tr key={i}
+                        onClick={() => setSelPitch(r.pitch_type)}
+                        style={{ borderTop:'1px solid #12161e', cursor:'pointer', background: selPitch===r.pitch_type ? col+'12' : 'transparent', transition:'background .15s' }}>
+                        <td style={{ padding:'.5rem .65rem' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                            <div style={{ width:'10px', height:'10px', borderRadius:'50%', background:col, flexShrink:0 }} />
+                            <span style={{ fontWeight:600, color:'#f0f2f8', whiteSpace:'nowrap' }}>{pName}</span>
+                          </div>
+                          {/* Usage bar */}
+                          <div style={{ height:'3px', background:'#1e2028', borderRadius:'2px', marginTop:'4px', width:'100px' }}>
+                            <div style={{ height:'100%', width:`${usage}%`, background:col, borderRadius:'2px', transition:'width .3s' }} />
+                          </div>
+                        </td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{usage.toFixed(1)}%</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: colors.primary, fontWeight:600 }}>{fmt1(fv(r,'avg_speed'))}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{Math.round(fv(r,'avg_spin')||0)||'—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{fmt1(fv(r,'avg_break_x'))}"</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{fmt1(fv(r,'avg_break_z'))}"</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: parseFloat(r.whiff_percent)>30?'#00c2a8':'#c8cce0' }}>{r.whiff_percent||'—'}{r.whiff_percent?'%':''}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.k_percent||'—'}{r.k_percent?'%':''}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.ba||'—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.slg||'—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.woba||'—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Charts row ── */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:'1.25rem', marginBottom:'1.25rem' }}>
+            {/* Movement chart */}
+            <div style={{ ...s.card, padding:'1rem' }}>
+              <MovementChart pitches={arsenal} />
+            </div>
+
+            {/* Pitch type selector + link */}
+            <div style={{ ...s.card, padding:'1rem' }}>
+              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.14em', color:'#5c6070', marginBottom:'.75rem' }}>
+                SELECT PITCH TO FILTER
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem', marginBottom:'1rem' }}>
+                {arsenal.map((r,i) => {
+                  const col = pitchColor(r.pitch_type ?? r.pitch_name);
+                  const active = selPitch === r.pitch_type;
+                  return (
+                    <button key={i} onClick={()=>setSelPitch(r.pitch_type)}
+                      style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', padding:'.3rem .65rem', borderRadius:'6px', border: `1px solid ${active ? col : '#1e2028'}`, background: active ? col+'22' : 'transparent', color: active ? col : '#5c6070', cursor:'pointer', transition:'all .15s' }}>
+                      {r.pitch_name ?? r.pitch_type}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Selected pitch detail */}
+              {selPitch && (() => {
+                const p = arsenal.find(r => r.pitch_type === selPitch);
+                if (!p) return null;
+                const col = pitchColor(selPitch);
+                return (
+                  <div style={{ borderTop:'1px solid #1e2028', paddingTop:'.75rem' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem' }}>
+                      {[
+                        ['Avg Velocity', fmt1(fv(p,'avg_speed'))+' mph'],
+                        ['Spin Rate',    Math.round(fv(p,'avg_spin')||0)+' rpm'],
+                        ['H-Movement',  fmt1(fv(p,'avg_break_x'))+'"'],
+                        ['V-Movement',  fmt1(fv(p,'avg_break_z'))+'"'],
+                        ['Whiff %',     (p.whiff_percent||'—')+(p.whiff_percent?'%':'')],
+                        ['Put Away %',  (p.put_away||'—')+(p.put_away?'%':'')],
+                        ['BA Against',  p.ba||'—'],
+                        ['SLG Against', p.slg||'—'],
+                      ].map(([label,val])=>(
+                        <div key={label} style={{ background:'#080c12', borderRadius:'6px', padding:'.4rem .6rem', borderLeft:`2px solid ${col}` }}>
+                          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', fontWeight:700, letterSpacing:'.1em', color:'#5c6070' }}>{label}</div>
+                          <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.9rem', color:'#f0f2f8', marginTop:'2px' }}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Savant link */}
+          <a href={`https://baseballsavant.mlb.com/savant-player/${player?.fullName?.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-')}-${id}?stats=statcast-r-pitching-mlb&playerType=pitcher`}
+            target="_blank" rel="noopener"
+            style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'1rem 1.25rem', background:'#0d1117', border:`1px solid ${colors.primary}33`, borderRadius:'10px', textDecoration:'none', transition:'all .2s' }}
+            onMouseEnter={e=>e.currentTarget.style.borderColor=colors.primary}
+            onMouseLeave={e=>e.currentTarget.style.borderColor=colors.primary+'33'}>
+            <span style={{ fontSize:'1.4rem' }}>🎯</span>
+            <div>
+              <div style={{ fontWeight:600, color:'#f0f2f8', fontSize:'.85rem' }}>Full Arsenal on Baseball Savant →</div>
+              <div style={{ fontSize:'.72rem', color:'#5c6070' }}>Heat maps · Pitch tunneling · Full pitch grades · Swing profiles</div>
+            </div>
+          </a>
+        </div>
+      )}
     </div>
   );
 }
