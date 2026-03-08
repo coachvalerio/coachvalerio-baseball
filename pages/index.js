@@ -280,7 +280,7 @@ export default function Home() {
         <a href="/" style={s.logo}>COACH<span style={{color:'#00c2a8'}}>.</span></a>
         <div style={s.navLinks}>
           {[['/', 'Home'],['/scoreboard','Scoreboard'],['/teams','Teams'],['/transactions','Transactions'],
-            ['/compare','Compare'],['/trade','Trade AI'],['/odds-board','Odds Board'],['/prospects','Prospects'],[`/leaders?season=${SEASON}`,'Leaders']
+            ['/compare','Compare'],['/trade','Trade AI'],['/odds-board','Odds Board'],[`/leaders?season=${SEASON}`,'Leaders']
           ].map(([href,label])=>(
             <a key={href} href={href} style={s.navLink}>{label}</a>
           ))}
@@ -293,7 +293,7 @@ export default function Home() {
         <div style={s.heroContent}>
           <div style={s.siteTitle}>COACH<span style={{color:'#00c2a8'}}>.</span></div>
           <div style={s.tagline}>DIG DEEP</div>
-          <div style={s.heroSub}>MLB Stats · Statcast · Prospects · Daily Predictions</div>
+          <div style={s.heroSub}>MLB Stats · Statcast · Live Scores · Daily Predictions</div>
           <div style={s.searchWrap}>
             <span style={s.searchIcon}>⌕</span>
             <input style={s.searchInput} type="text" placeholder="Search any MLB player — past or present…"
@@ -457,23 +457,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PROSPECTS PROMO BANNER */}
-      <div style={s.section}>
-        <div style={s.sectionInner}>
-          <a href="/prospects" style={{ display:'flex', alignItems:'center', gap:'1.5rem', background:'linear-gradient(135deg,#080c12 0%,#0d1117 100%)', border:'1px solid #1e2028', borderRadius:'12px', padding:'1.25rem 1.5rem', textDecoration:'none', transition:'all .2s', overflow:'hidden', position:'relative' }}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor='#00c2a8';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,194,168,.1)'}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor='#1e2028';e.currentTarget.style.boxShadow='none'}}>
-            <div style={{ position:'absolute', right:'-20px', top:'-20px', fontSize:'6rem', opacity:.04, lineHeight:1, pointerEvents:'none' }}>⚾</div>
-            <div style={{ fontSize:'2rem', flexShrink:0 }}>🌱</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'1.2rem', color:'#f0f2f8', letterSpacing:'.04em' }}>MLB PROSPECTS TOP 100</div>
-              <div style={{ fontSize:'.78rem', color:'#5c6070', marginTop:'.2rem' }}>Tool grades · ETA timelines · Live minor league stats · Farm system rankings · Radar charts</div>
-            </div>
-            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.8rem', fontWeight:700, letterSpacing:'.1em', color:'#00c2a8', flexShrink:0 }}>EXPLORE →</div>
-          </a>
-        </div>
-      </div>
-
 
       <div style={s.section}>
         <div style={{...s.sectionInner,display:'grid',gridTemplateColumns:'1fr 380px',gap:'2rem',alignItems:'start'}}>
@@ -577,7 +560,7 @@ const FEATURED = [
   { id:670541,  name:'Yordan Alvarez',    pos:'DH · Astros'     },
   { id:677594,  name:'Julio Rodriguez',   pos:'OF · Mariners'   },
   { id:682998,  name:'Corbin Carroll',    pos:'OF · D-backs'    },
-  { id:641355,  name:'José Ramírez',      pos:'3B · Guardians'  },
+  { id:608070,  name:'José Ramírez',      pos:'3B · Guardians'  },
   // Row 3 — Elite arms + rising stars
   { id:694973,  name:'Paul Skenes',       pos:'SP · Pirates'    },
   { id:675911,  name:'Spencer Strider',   pos:'SP · Braves'     },
