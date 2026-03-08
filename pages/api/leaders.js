@@ -88,83 +88,135 @@ export default async function handler(req, res) {
   let velo = [], movement = [];
 
   if (savantAvailable) {
-    const batterCols = 'b_ab,b_pa,b_home_run,b_rbi,batting_avg,on_base_percent,slg_percent,on_base_plus_slg,woba,wrc_plus,war';
-    const pitcherCols = 'p_game,p_formatted_ip,p_win,p_loss,p_save,p_earned_run_avg,p_whip,xera,fip,war';
+    // Savant custom leaderboard CSV columns we actually need
+    const batterCols  = 'wrc_plus,war';
+    const pitcherCols = 'p_era,p_whip,xera,fip,war';
 
     const [bRes, pRes, veloRes, moveRes] = await Promise.all([
-      safeFetch(`https://baseballsavant.mlb.com/leaderboard/custom?year=${season}&type=batter&filter=&sort=4&sortDir=desc&min=q&selections=${batterCols}&csv=true`),
-      safeFetch(`https://baseballsavant.mlb.com/leaderboard/custom?year=${season}&type=pitcher&filter=&sort=4&sortDir=desc&min=q&selections=${pitcherCols}&csv=true`),
+      safeFetch(`https://baseballsavant.mlb.com/leaderboard/custom?year=${season}&type=batter&filter=&sort=wrc_plus&sortDir=desc&min=q&selections=${batterCols}&csv=true`),
+      safeFetch(`https://baseballsavant.mlb.com/leaderboard/custom?year=${season}&type=pitcher&filter=&sort=p_era&sortDir=asc&min=q&selections=${pitcherCols}&csv=true`),
       safeFetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=FF&year=${season}&team=&min=50&sort=avg_speed&sortDir=desc&csv=true`),
       safeFetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${season}&team=&min=50&sort=avg_break&sortDir=desc&csv=true`),
     ]);
 
+    // Helper: Savant CSVs use "last_name, first_name" in player_name column
+    // player_id is a separate numeric column
+    const parseName = r => {
+      // player_name format: "Last, First" — convert to "First Last"
+      const raw = r['player_name'] ?? r['name'] ?? '';
+      if (raw.includes(',')) {
+        const [last, first] = raw.split(',').map(s => s.trim());
+        return `${first} ${last}`.trim();
+      }
+      return raw || '—';
+    };
+    const getId  = r => {
+      const id = r['player_id'] ?? r['xba_player_id'] ?? '';
+      return id ? parseInt(id) : null;
+    };
+    const getTeam = r => r['team_name_abbrev'] ?? r['team'] ?? '—';
+
+    // Case-insensitive column lookup (Savant uses inconsistent casing)
+    const col = (r, key) => {
+      if (r[key] !== undefined) return r[key];
+      const lower = key.toLowerCase();
+      const found = Object.keys(r).find(k => k.toLowerCase() === lower);
+      return found ? r[found] : undefined;
+    };
+
     if (bRes) {
-      const rows = parseCSV(await bRes.text());
-      const toLeader = (rows, valFn, sortFn, asc = false) => {
-        const sorted = [...rows].sort((a, b) => asc ? sortFn(a) - sortFn(b) : sortFn(b) - sortFn(a));
-        return sorted.slice(0, 10).map((r, i) => ({
+      const rows = parseCSV(await bRes.text()).filter(r => parseName(r) !== '—');
+
+      const makeLeader = (sorted, valFn) =>
+        sorted.slice(0, 10).map((r, i) => ({
           rank: i + 1,
-          name: `${r.first_name} ${r.last_name}`.trim(),
-          team: r.team_name_abbrev ?? '—',
+          name: parseName(r),
+          team: getTeam(r),
           teamId: null,
-          playerId: r.player_id ? parseInt(r.player_id) : null,
+          playerId: getId(r),
           value: valFn(r),
         }));
-      };
-      batter_war = toLeader(rows, r => parseFloat(r.war)?.toFixed(1) ?? '—', r => parseFloat(r.war) || 0);
-      wrc_plus   = toLeader(rows, r => r.wrc_plus ?? '—', r => parseFloat(r.wrc_plus) || 0);
+
+      const byWrc = [...rows].sort((a,b) => (parseFloat(col(b,'wrc_plus'))||0) - (parseFloat(col(a,'wrc_plus'))||0));
+      wrc_plus = makeLeader(byWrc, r => {
+        const v = parseFloat(col(r,'wrc_plus'));
+        return isNaN(v) ? '—' : Math.round(v).toString();
+      });
+
+      const byWar = [...rows].sort((a,b) => (parseFloat(col(b,'war'))||0) - (parseFloat(col(a,'war'))||0));
+      batter_war = makeLeader(byWar, r => {
+        const v = parseFloat(col(r,'war'));
+        return isNaN(v) ? '—' : v.toFixed(1);
+      });
     }
 
     if (pRes) {
-      const rows = parseCSV(await pRes.text());
-      const toLeaderP = (rows, valFn, sortFn, asc = false) => {
-        const valid = rows.filter(r => sortFn(r) > 0 && sortFn(r) < 99);
-        const sorted = [...valid].sort((a, b) => asc ? sortFn(a) - sortFn(b) : sortFn(b) - sortFn(a));
-        return sorted.slice(0, 10).map((r, i) => ({
+      const rows = parseCSV(await pRes.text()).filter(r => parseName(r) !== '—');
+
+      const makeLeaderP = (sorted, valFn) =>
+        sorted.slice(0, 10).map((r, i) => ({
           rank: i + 1,
-          name: `${r.first_name} ${r.last_name}`.trim(),
-          team: r.team_name_abbrev ?? '—',
+          name: parseName(r),
+          team: getTeam(r),
           teamId: null,
-          playerId: r.player_id ? parseInt(r.player_id) : null,
+          playerId: getId(r),
           value: valFn(r),
         }));
-      };
-      pitcher_war = toLeaderP(rows, r => parseFloat(r.war)?.toFixed(1) ?? '—', r => parseFloat(r.war) || 0);
-      xera        = toLeaderP(rows, r => parseFloat(r.xera)?.toFixed(2) ?? '—', r => parseFloat(r.xera) || 99, true);
-      fip         = toLeaderP(rows, r => parseFloat(r.fip)?.toFixed(2) ?? '—',  r => parseFloat(r.fip)  || 99, true);
+
+      const byXera = [...rows]
+        .filter(r => parseFloat(col(r,'xera')) > 0)
+        .sort((a,b) => (parseFloat(col(a,'xera'))||99) - (parseFloat(col(b,'xera'))||99));
+      xera = makeLeaderP(byXera, r => {
+        const v = parseFloat(col(r,'xera'));
+        return isNaN(v) ? '—' : v.toFixed(2);
+      });
+
+      const byFip = [...rows]
+        .filter(r => parseFloat(col(r,'fip')) > 0)
+        .sort((a,b) => (parseFloat(col(a,'fip'))||99) - (parseFloat(col(b,'fip'))||99));
+      fip = makeLeaderP(byFip, r => {
+        const v = parseFloat(col(r,'fip'));
+        return isNaN(v) ? '—' : v.toFixed(2);
+      });
+
+      const byWarP = [...rows].sort((a,b) => (parseFloat(col(b,'war'))||0) - (parseFloat(col(a,'war'))||0));
+      pitcher_war = makeLeaderP(byWarP, r => {
+        const v = parseFloat(col(r,'war'));
+        return isNaN(v) ? '—' : v.toFixed(1);
+      });
     }
 
     if (veloRes) {
       const rows = parseCSV(await veloRes.text());
       velo = rows
-        .filter(r => parseFloat(r.avg_speed) > 0)
-        .sort((a, b) => parseFloat(b.avg_speed) - parseFloat(a.avg_speed))
+        .filter(r => parseFloat(col(r,'avg_speed')) > 0)
+        .sort((a,b) => parseFloat(col(b,'avg_speed')) - parseFloat(col(a,'avg_speed')))
         .slice(0, 10)
         .map((r, i) => ({
           rank: i + 1,
-          name: `${r.first_name} ${r.last_name}`.trim(),
-          team: r.team_name_abbrev ?? '—',
+          name: parseName(r),
+          team: getTeam(r),
           teamId: null,
-          playerId: r.player_id ? parseInt(r.player_id) : null,
-          value: `${parseFloat(r.avg_speed).toFixed(1)} mph`,
-          sub: r.pitch_type_name ?? 'Fastball',
+          playerId: getId(r),
+          value: `${parseFloat(col(r,'avg_speed')).toFixed(1)} mph`,
+          sub: col(r,'pitch_type_name') ?? 'Fastball',
         }));
     }
 
     if (moveRes) {
       const rows = parseCSV(await moveRes.text());
       movement = rows
-        .filter(r => parseFloat(r.avg_break) > 0)
-        .sort((a, b) => parseFloat(b.avg_break) - parseFloat(a.avg_break))
+        .filter(r => parseFloat(col(r,'avg_break')) > 0)
+        .sort((a,b) => parseFloat(col(b,'avg_break')) - parseFloat(col(a,'avg_break')))
         .slice(0, 10)
         .map((r, i) => ({
           rank: i + 1,
-          name: `${r.first_name} ${r.last_name}`.trim(),
-          team: r.team_name_abbrev ?? '—',
+          name: parseName(r),
+          team: getTeam(r),
           teamId: null,
-          playerId: r.player_id ? parseInt(r.player_id) : null,
-          value: `${parseFloat(r.avg_break).toFixed(1)}"`,
-          sub: r.pitch_type_name ?? '',
+          playerId: getId(r),
+          value: `${parseFloat(col(r,'avg_break')).toFixed(1)}"`,
+          sub: col(r,'pitch_type_name') ?? '',
         }));
     }
   }
