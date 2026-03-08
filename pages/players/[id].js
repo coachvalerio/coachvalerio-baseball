@@ -758,18 +758,16 @@ function ArsenalTab({ id, colors, player }) {
   useEffect(() => {
     setLoading(true); setArsenal([]); setPitches([]); setError(null);
 
-    // Fetch pitch arsenal stats (aggregated by pitch type) from Savant
-    const arsenalUrl = `https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfSeas=${year}%7C&player_type=pitcher&pitcher_id=${id}&group_by=name-pitch&sort_col=pitches&sort_order=desc&min_pitches=0`;
-
-    fetch(arsenalUrl)
-      .then(r => r.ok ? r.text() : Promise.reject(r.status))
-      .then(text => {
-        const rows = parseCSVClient(text).filter(r => r.pitch_name && r.pitches && parseInt(r.pitches) > 0);
+    fetch(`/api/arsenal?id=${id}&year=${year}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setError('No arsenal data available for this season.'); setLoading(false); return; }
+        const rows = (d.rows ?? []).filter(r => r.pitch_type || r.pitch_name);
         setArsenal(rows);
+        if (rows.length > 0) setSelPitch(rows[0].pitch_type ?? rows[0].pitch_name);
         setLoading(false);
-        if (rows.length > 0) setSelPitch(rows[0].pitch_type);
       })
-      .catch(e => { setError('Could not load arsenal data from Baseball Savant.'); setLoading(false); });
+      .catch(() => { setError('Could not load arsenal data.'); setLoading(false); });
   }, [id, year]);
 
   const fv = (r, k) => { const v = parseFloat(r[k]); return isNaN(v) ? '—' : v; };

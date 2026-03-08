@@ -53,6 +53,46 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=300');
   const season = parseInt(req.query.season ?? new Date().getFullYear(), 10);
 
+  // ── Short-circuit: pitch movement by type (for Statcast leaders board) ────
+  if (req.query.movement) {
+    const pitchType = req.query.movement; // e.g. FF, SL, CU …
+    try {
+      const url = `https://baseballsavant.mlb.com/leaderboard/pitch-movement?season=${season}&team=&min=100&type=pitcher&pitch_type=${pitchType}&hand=&csv=true`;
+      const r = await fetch(url, { headers: BROWSER_HEADERS, signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return res.status(502).json({ rows: [] });
+      const text = await r.text();
+      const parseName = row => {
+        if (row['last_name'] && row['first_name']) return `${row['first_name'].trim()} ${row['last_name'].trim()}`;
+        const raw = row['player_name'] ?? '';
+        if (raw.includes(',')) { const [l,f] = raw.split(',').map(s=>s.trim()); return `${f} ${l}`; }
+        return raw || '—';
+      };
+      const flt = (r, k) => { const v = parseFloat(r[k]); return isNaN(v) ? null : v; };
+      const rows = parseCSV(text)
+        .filter(r => flt(r, 'avg_break') !== null || flt(r, 'pitcher_break_z') !== null)
+        .sort((a,b) => {
+          const bv = Math.abs(flt(b,'avg_break') ?? flt(b,'pitcher_break_z') ?? 0);
+          const av = Math.abs(flt(a,'avg_break') ?? flt(a,'pitcher_break_z') ?? 0);
+          return bv - av;
+        })
+        .slice(0, 10)
+        .map((r, i) => {
+          const breakVal = flt(r,'avg_break') ?? flt(r,'pitcher_break_z') ?? 0;
+          return {
+            rank: i + 1,
+            name: parseName(r),
+            team: r['team_name_abbrev'] ?? r['team_abbrev'] ?? '—',
+            playerId: r['player_id'] ? parseInt(r['player_id']) : null,
+            value: `${Math.abs(breakVal).toFixed(1)}"`,
+            sub: pitchType,
+          };
+        });
+      return res.status(200).json({ rows });
+    } catch (e) {
+      return res.status(500).json({ rows: [], error: e.message });
+    }
+  }
+
   // ── MLB Stats API — all standard stats ────────────────────────────────────
   const [
     battingAverage, onBasePercentage, sluggingPercentage, onBasePlusSlugging,

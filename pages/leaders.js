@@ -94,23 +94,9 @@ function StatcastLeaders({ season, onPlayer }) {
   useEffect(() => {
     if (season < 2017) { setVeloData([]); setLoadingV(false); return; }
     setLoadingV(true); setErrorV(false);
-    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${season}&position=&team=&min=50&csv=true`)
-      .then(r => r.ok ? r.text() : Promise.reject())
-      .then(text => {
-        const rows = parseCSVBrowser(text)
-          .filter(r => parseFloat(r['avg_speed']??r['velo']) > 0)
-          .sort((a,b) => parseFloat((b['avg_speed']??b['velo'])??0) - parseFloat((a['avg_speed']??a['velo'])??0))
-          .slice(0,10)
-          .map((r,i) => ({
-            rank: i+1,
-            name: parseSavantName(r),
-            team: r['team_name_abbrev']??'—',
-            playerId: r['player_id'] ? parseInt(r['player_id']) : null,
-            value: `${parseFloat(r['avg_speed']??r['velo']).toFixed(1)} mph`,
-            sub: r['pitch_name']??r['pitch_type']??'',
-          }));
-        setVeloData(rows); setLoadingV(false);
-      })
+    fetch(`/api/leaders?season=${season}&statcast=velo`)
+      .then(r => r.json())
+      .then(d => { setVeloData(d.velo ?? []); setLoadingV(false); })
       .catch(() => { setErrorV(true); setLoadingV(false); });
   }, [season]);
 
@@ -118,23 +104,9 @@ function StatcastLeaders({ season, onPlayer }) {
   useEffect(() => {
     if (season < 2017) { setMoveData([]); setLoadingM(false); return; }
     setLoadingM(true); setErrorM(false);
-    fetch(`https://baseballsavant.mlb.com/leaderboard/pitch-movement?season=${season}&team=&min=250&type=pitcher&pitch_type=${pitchType}&hand=&csv=true`)
-      .then(r => r.ok ? r.text() : Promise.reject())
-      .then(text => {
-        const rows = parseCSVBrowser(text)
-          .filter(r => parseFloat((r['avg_break']??r['pitcher_break_z'])??0) !== 0)
-          .sort((a,b) => Math.abs(parseFloat((b['avg_break']??b['pitcher_break_z'])??0)) - Math.abs(parseFloat((a['avg_break']??a['pitcher_break_z'])??0)))
-          .slice(0,10)
-          .map((r,i) => ({
-            rank: i+1,
-            name: parseSavantName(r),
-            team: r['team_name_abbrev']??'—',
-            playerId: r['player_id'] ? parseInt(r['player_id']) : null,
-            value: `${Math.abs(parseFloat(r['avg_break']??r['pitcher_break_z']??0)).toFixed(1)}"`,
-            sub: STATCAST_PITCH_TYPES.find(p=>p.key===pitchType)?.label??pitchType,
-          }));
-        setMoveData(rows); setLoadingM(false);
-      })
+    fetch(`/api/leaders?season=${season}&movement=${pitchType}`)
+      .then(r => r.json())
+      .then(d => { setMoveData(d.rows ?? []); setLoadingM(false); })
       .catch(() => { setErrorM(true); setLoadingM(false); });
   }, [season, pitchType]);
 
