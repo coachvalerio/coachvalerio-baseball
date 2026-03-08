@@ -140,7 +140,7 @@ function aggregateByPitchType(parsedRows) {
   });
 
   // Sort by pitch count descending (most-used pitch first)
-  return result.sort((a, b) => (b.pitch_count || 0) - (a.pitch_count || 0));
+  return result.sort((a, b) => (b.pitch_count || b.usage_pct || 0) - (a.pitch_count || a.usage_pct || 0));
 }
 
 // Filter aggregated pitches: must be a known type AND meet minimum count threshold
@@ -153,9 +153,11 @@ function finalize(pitches) {
     .filter(p => {
       // Must be a known Statcast pitch classification
       if (!KNOWN_PITCH_TYPES.has(p.pitch_type)) return false;
-      // Must meet minimum pitch count (eliminates Statcast misclassifications)
-      if ((p.pitch_count || 0) < MIN_PITCHES) return false;
-      return true;
+      // Allow if usage_pct is meaningful (primary endpoint has % but no raw counts)
+      if (p.usage_pct !== null && p.usage_pct >= 0.5) return true;
+      // Otherwise require minimum raw pitch count to filter Statcast misclassifications
+      if ((p.pitch_count || 0) >= MIN_PITCHES) return true;
+      return false;
     })
     .map(p => ({
       ...p,
@@ -183,7 +185,7 @@ export default async function handler(req, res) {
       const parsed = rawRows
         .filter(r => r['pitch_type'] && KNOWN_PITCH_TYPES.has(r['pitch_type'].trim()))
         .map(parseRow)
-        .filter(r => r.pitch_count >= MIN_PITCHES || r.usage_pct >= 0.5);
+        .filter(r => (r.usage_pct !== null && r.usage_pct >= 0.5) || r.pitch_count >= MIN_PITCHES);
 
       if (parsed.length > 0) {
         const pitches = finalize(aggregateByPitchType(parsed));
