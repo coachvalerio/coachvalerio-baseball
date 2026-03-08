@@ -1,20 +1,31 @@
 // pages/api/arsenal.js
 //
-// Source map — one correct source per stat type:
+// CONFIRMED column layouts from debug (2025-03-08):
 //
-// Source A — pitch-arsenal-stats?player_id={id}
-//   → outcome stats: ba, slg, woba, est_woba, whiff_percent, k_percent,
-//                    put_away, hard_hit_percent, pitch_name
+// Source A — pitch-arsenal-stats (full leaderboard, filter by first_name=player_id)
+//   Savant mislabels columns — ACTUAL mapping confirmed by value inspection:
+//   'first_name'      → MLB player ID (numeric, use to filter rows)
+//   'team_name_alt'   → pitch type CODE (FF, SI, ST, FC, etc.)
+//   'pitch_type'      → pitch name TEXT (4-Seam Fastball, Sweeper, etc.)
+//   'pitches'         → pitch USAGE % already (e.g. 31.0 = 31%) ← not a count!
+//   'pitch_usage'     → PA count
+//   'pa'              → BA
+//   'ba'              → SLG
+//   'slg'             → wOBA
+//   'whiff_percent'   → whiff % ✓
+//   'k_percent'       → K% ✓
+//   'put_away'        → put away % ✓
+//   'est_slg'         → xwOBA
+//   'est_woba'        → hard_hit_percent
 //
-// Source C_n — pitch-arsenals?type=n_
-//   → usage % (wide format, cols: ff_n_, si_n_, st_n_, fc_n_, etc.)
-//   → THIS is what Savant's arsenal page actually displays — exact 1:1 match
+// Source Cn — pitch-arsenals?year=&type=n_   ← must use year= not season=
+//   cols: last_name, first_name, pitcher, n_ff, n_si, n_fc, n_sl, n_ch, n_cu, n_fs, n_kn, n_st, n_sv
+//   'pitcher' → player MLB ID (integer)
+//   'n_ff', 'n_st', 'n_si' etc. → usage % (Savant-exact)
+//   Match player by: parseInt(r['pitcher']) === numId
 //
-// Source C_spd — pitch-arsenals?type=avg_speed
-//   → velo fallback (wide format, cols: ff_avg_speed, si_avg_speed, etc.)
-//
-// Source D — pitch-movement?pitch_type={PT}  (one fetch per active pitch)
-//   → avg_speed (primary velo), avg_spin_rate, avg_break_x, avg_break_z
+// Source D — pitch-movement?pitch_type={CODE}  ← must pass CODE not name
+//   cols: player_id, avg_speed, avg_spin_rate, avg_break_x, avg_break_z
 
 function getCurrentSeasonYear() {
   const now = new Date();
@@ -35,7 +46,7 @@ const PITCH_NAMES = {
   KN:'Knuckleball', SV:'Slurve', FO:'Forkball', FA:'Fastball',
 };
 
-// Prefix used in the pitch-arsenals wide-format CSV for each pitch type
+// pitch-arsenals n_ columns: n_{prefix}
 const PITCH_PREFIX = {
   FF:'ff', SI:'si', FC:'fc', SL:'sl', ST:'st', CU:'cu',
   KC:'kc', CH:'ch', FS:'fs', KN:'kn', SV:'sv', FO:'fo', FA:'fa',
@@ -89,22 +100,20 @@ export default async function handler(req, res) {
   const year  = yearParam ?? getCurrentSeasonYear();
   const numId = parseInt(id, 10);
 
-  // ── Step 1: Fetch Source A + Source C_n + Source C_spd in parallel ───────────
+  // ── Step 1: Source A + Source Cn in parallel ──────────────────────────────
+  // Note: pitch-arsenals MUST use year= not season=
   const [resA, resCn, resCspd] = await Promise.allSettled([
-    // Source A — outcome stats per pitch type
     fetch(
-      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${year}&team=&min=0&player_id=${id}&csv=true`,
-      { headers:HEADERS, signal:AbortSignal.timeout(12000) }
+      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${year}&team=&min=0&csv=true`,
+      { headers:HEADERS, signal:AbortSignal.timeout(15000) }
     ).then(r=>r.text()),
-    // Source C_n — USAGE % — exact same data as Savant's arsenal page
     fetch(
-      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${year}&position=&team=&min=0&type=n_&csv=true`,
-      { headers:HEADERS, signal:AbortSignal.timeout(12000) }
+      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?year=${year}&min=0&type=n_&hand=&csv=true`,
+      { headers:HEADERS, signal:AbortSignal.timeout(15000) }
     ).then(r=>r.text()),
-    // Source C_spd — avg speed fallback
     fetch(
-      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?season=${year}&position=&team=&min=0&type=avg_speed&csv=true`,
-      { headers:HEADERS, signal:AbortSignal.timeout(12000) }
+      `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?year=${year}&min=0&type=avg_speed&hand=&csv=true`,
+      { headers:HEADERS, signal:AbortSignal.timeout(15000) }
     ).then(r=>r.text()),
   ]);
 
@@ -112,52 +121,45 @@ export default async function handler(req, res) {
   const { headers:hCn,   rows:rawCn   } = parseCSV(resCn.status==='fulfilled'   ? resCn.value   : '');
   const { headers:hCspd, rows:rawCspd } = parseCSV(resCspd.status==='fulfilled' ? resCspd.value : '');
 
-  // Find this player's row in wide-format leaderboards (column name is `pitcher`)
+  // Source A: filter to this player only
+  // Savant puts the MLB ID in the 'first_name' column (confirmed by debug)
+  const playerRowsA = rawA.filter(r => parseInt(r['first_name'],10) === numId);
+
+  // Source Cn/Cspd: find player row by 'pitcher' integer column
   const playerUsageRow = rawCn.find(r   => parseInt(r['pitcher'],10) === numId) ?? {};
   const playerSpeedRow = rawCspd.find(r => parseInt(r['pitcher'],10) === numId) ?? {};
 
-  // ── Step 2: Determine active pitch types + usage% from Source C_n ────────────
-  // Columns: ff_n_, si_n_, st_n_, fc_n_, cu_n_, ch_n_, sl_n_, fs_n_, etc.
-  // Values are already percentages (e.g. 15.0 = 15%) — exactly what Savant shows.
-  const usageFromCn = {};
-  for (const [pt, prefix] of Object.entries(PITCH_PREFIX)) {
-    const val = flt(playerUsageRow, `${prefix}_n_`);
-    if (val !== null && val > 0) usageFromCn[pt] = val;
-  }
+  // ── Step 2: Build pitch type → usage map ─────────────────────────────────
+  // PRIMARY: Source Cn  (n_ff, n_st, n_si... — exact Savant percentages)
+  // FALLBACK: Source A  ('pitches' column = usage % already, 'team_name_alt' = pitch code)
+  const usageFinal = {};
 
-  let usageFinal = {};
-  let activePitchTypes = [];
+  const hasCnData = Object.keys(playerUsageRow).length > 0;
 
-  if (Object.keys(usageFromCn).length > 0) {
-    // Primary path: exact Savant usage percentages
-    usageFinal = usageFromCn;
-    activePitchTypes = Object.entries(usageFromCn)
-      .filter(([, u]) => u >= 1.0)
-      .map(([pt]) => pt);
+  if (hasCnData) {
+    for (const [pt, prefix] of Object.entries(PITCH_PREFIX)) {
+      const val = flt(playerUsageRow, `n_${prefix}`);
+      if (val !== null && val > 0) usageFinal[pt] = val;
+    }
   } else {
-    // Fallback: player not in pitch-arsenals leaderboard (e.g. low pitch count)
-    // Derive usage from raw pitch counts in Source A
-    const countByType = {};
-    let totalCount = 0;
-    for (const r of rawA) {
-      const pt = (r['pitch_type']??'').trim();
-      if (!pt) continue;
-      const c = flt(r,'pitches') ?? 0;
-      countByType[pt] = (countByType[pt] ?? 0) + c;
-      totalCount += c;
+    // Fallback: Source A — 'team_name_alt' = pitch code, 'pitches' = usage %
+    for (const r of playerRowsA) {
+      const pt      = (r['team_name_alt']??'').trim().toUpperCase();
+      const usagePct = flt(r, 'pitches'); // confirmed: 'pitches' col holds usage %
+      if (pt && usagePct !== null && usagePct > 0) {
+        usageFinal[pt] = (usageFinal[pt] ?? 0) + usagePct;
+      }
     }
-    for (const [pt, c] of Object.entries(countByType)) {
-      usageFinal[pt] = totalCount > 0 ? (c/totalCount)*100 : 0;
-    }
-    activePitchTypes = Object.entries(usageFinal)
-      .filter(([, u]) => u >= 1.0)
-      .map(([pt]) => pt);
   }
 
-  // ── Source A: group rows by pitch_type for outcome stats ─────────────────────
+  const activePitchTypes = Object.entries(usageFinal)
+    .filter(([, u]) => u >= 1.0)
+    .map(([pt]) => pt);
+
+  // ── Source A: group by pitch type code ('team_name_alt') ─────────────────
   const groupsA = {};
-  for (const r of rawA) {
-    const pt = (r['pitch_type']??'').trim();
+  for (const r of playerRowsA) {
+    const pt = (r['team_name_alt']??'').trim().toUpperCase();
     if (!pt) continue;
     if (!groupsA[pt]) groupsA[pt] = [];
     groupsA[pt].push(r);
@@ -166,18 +168,18 @@ export default async function handler(req, res) {
   if (debug) {
     return res.status(200).json({
       A_cols:         hA,
-      A_sample:       rawA[0] ?? null,
-      A_rowCount:     rawA.length,
+      A_playerRows:   playerRowsA.length,
+      A_sample:       playerRowsA[0] ?? null,
       Cn_cols:        hCn,
       Cn_playerRow:   playerUsageRow,
       Cspd_playerRow: playerSpeedRow,
-      usageFromCn,
       usageFinal,
       activePitchTypes,
+      groupsA_keys:   Object.keys(groupsA),
     });
   }
 
-  // ── Step 3: Fetch pitch-movement per active pitch type ───────────────────────
+  // ── Step 3: Fetch pitch-movement per active pitch type (using CODES) ──────
   const movementByType = {};
   if (activePitchTypes.length > 0) {
     const moveResults = await Promise.allSettled(
@@ -204,49 +206,68 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Step 4: Build final pitch objects ────────────────────────────────────────
+  // ── Step 4: Build final pitch objects ─────────────────────────────────────
+  // Source A column → actual meaning (confirmed by debug):
+  //   'pitches'         → usage % (already percent)
+  //   'pa'              → BA
+  //   'ba'              → SLG
+  //   'slg'             → wOBA
+  //   'whiff_percent'   → whiff %  ✓
+  //   'k_percent'       → K%       ✓
+  //   'put_away'        → put away ✓
+  //   'est_slg'         → xwOBA
+  //   'est_woba'        → hard hit %
+
   const pitches = activePitchTypes
     .map(pt => {
       const rows    = groupsA[pt] ?? [];
       const prefix  = PITCH_PREFIX[pt];
       const moveRow = movementByType[pt] ?? {};
 
-      // Usage: from Source C_n (Savant-exact)
-      const usage = usageFinal[pt] ?? null;
+      const usage      = usageFinal[pt] ?? null;
+      // PA count for weighted averages ('pitch_usage' col = PA count per confirmed debug)
+      const paCounts   = rows.map(r => flt(r,'pitch_usage') ?? 1);
+      const totalPA    = paCounts.reduce((s,v)=>s+v, 0);
 
-      // Pitch count: sum from Source A (display only)
-      const pitchCount = rows.reduce((s,r) => s+(flt(r,'pitches')??0), 0);
+      // Weighted average helper using PA counts
+      const waPA = (field) => {
+        let num=0, den=0;
+        rows.forEach((r,i) => {
+          const v = flt(r,field);
+          if(v!==null){ num+=v*paCounts[i]; den+=paCounts[i]; }
+        });
+        return den>0 ? num/den : null;
+      };
 
-      // Velo: pitch-movement primary → Source C_spd wide-format fallback
+      // Velo: movement → speed leaderboard fallback
       const speed = flt(moveRow,'avg_speed','release_speed')
         ?? (prefix ? flt(playerSpeedRow,`${prefix}_avg_speed`) : null);
 
-      // Spin + Break: pitch-movement
       const spin   = flt(moveRow,'avg_spin_rate','spin_rate','release_spin_rate');
       const breakX = flt(moveRow,'avg_break_x','pitcher_break_x','pfx_x_inches');
       const breakZ = flt(moveRow,'avg_break_z','pitcher_break_z','pfx_z_inches','avg_break');
 
-      // Pitch name: Source A → lookup table
-      const pitchName = (rows.length > 0 ? str(rows[0],'pitch_name','pitch_type_name') : null)
-        ?? PITCH_NAMES[pt] ?? pt;
+      // Pitch name: from Source A 'pitch_type' col (holds text name per debug)
+      const pitchName = str(rows[0],'pitch_type') ?? PITCH_NAMES[pt] ?? pt;
 
       return {
         pitch_type:   pt,
         pitch_name:   pitchName,
-        pitch_count:  pitchCount,
+        pitch_count:  totalPA,
         usage_pct:    usage,
         avg_speed:    speed,
         avg_spin:     spin,
         avg_break_x:  breakX,
         avg_break_z:  breakZ,
-        whiff_pct:    rows.length > 0 ? wavg(rows,'whiff_percent')    : null,
-        k_pct:        rows.length > 0 ? wavg(rows,'k_percent')        : null,
-        ba:           rows.length > 0 ? wavg(rows,'ba')               : null,
-        slg:          rows.length > 0 ? wavg(rows,'slg')              : null,
-        woba:         rows.length > 0 ? wavg(rows,'woba')             : null,
-        xwoba:        rows.length > 0 ? (wavg(rows,'est_woba') ?? wavg(rows,'xwoba')) : null,
-        put_away:     rows.length > 0 ? wavg(rows,'put_away')         : null,
-        hard_hit_pct: rows.length > 0 ? wavg(rows,'hard_hit_percent') : null,
+        // Stat columns — confirmed actual mapping from debug:
+        whiff_pct:    rows.length > 0 ? waPA('whiff_percent') : null,
+        k_pct:        rows.length > 0 ? waPA('k_percent')     : null,
+        ba:           rows.length > 0 ? waPA('pa')            : null,  // 'pa' col = BA
+        slg:          rows.length > 0 ? waPA('ba')            : null,  // 'ba' col = SLG
+        woba:         rows.length > 0 ? waPA('slg')           : null,  // 'slg' col = wOBA
+        xwoba:        rows.length > 0 ? waPA('est_slg')       : null,  // 'est_slg' col = xwOBA
+        put_away:     rows.length > 0 ? waPA('put_away')      : null,
+        hard_hit_pct: rows.length > 0 ? waPA('est_woba')      : null,  // 'est_woba' col = hard hit
       };
     })
     .sort((a,b) => (b.usage_pct??0) - (a.usage_pct??0));
