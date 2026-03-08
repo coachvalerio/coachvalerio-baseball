@@ -347,7 +347,23 @@ export default function OddsBoardPage() {
           <a href="https://the-odds-api.com" target="_blank" rel="noopener noreferrer"
             style={{ color: '#00c2a8' }}>the-odds-api.com</a> (free tier: 500 requests/month){' '}
           → add <code style={{ background: '#1e2028', padding: '.1rem .4rem', borderRadius: '3px' }}>ODDS_API_KEY=yourkey</code>{' '}
-          to Vercel Environment Variables.
+          to Vercel Environment Variables → Redeploy.
+        </div>
+      )}
+      {data && data.hasApiKey && data.oddsRawCount === 0 && (
+        <div style={s.keyNotice}>
+          <strong style={{ color: '#f5a623' }}>⚠ API key found but no odds returned.</strong>{' '}
+          {data.oddsError
+            ? <span>Error: <code style={{ background: '#1e2028', padding: '.1rem .4rem', borderRadius: '3px' }}>{data.oddsError}</code></span>
+            : <span>Spring training lines may not be posted yet for today's games — check back closer to first pitch, or visit{' '}
+                <a href="/api/odds-debug" target="_blank" style={{ color: '#00c2a8' }}>/api/odds-debug</a> to diagnose.</span>
+          }
+        </div>
+      )}
+      {data && data.hasApiKey && data.oddsRawCount > 0 && data.gamesWithOdds === 0 && (
+        <div style={s.keyNotice}>
+          <strong style={{ color: '#f5a623' }}>⚠ Odds fetched ({data.oddsRawCount} events) but no games matched today's schedule.</strong>{' '}
+          Visit <a href="/api/odds-debug" target="_blank" style={{ color: '#00c2a8' }}>/api/odds-debug</a> to see raw API data.
         </div>
       )}
 

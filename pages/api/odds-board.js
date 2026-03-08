@@ -110,79 +110,94 @@ export default async function handler(req, res) {
   let oddsMap    = {}; // keyed by normalized team name pairs
   let oddsQuota  = null;
   let oddsError  = null;
+  let oddsRawCount = 0;
 
   if (apiKey) {
-    const oddsUrl = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american&bookmakers=fanduel,draftkings,betmgm,caesars`;
-    try {
-      const oddsRes = await fetch(oddsUrl);
-      oddsQuota = {
-        remaining: oddsRes.headers.get('x-requests-remaining'),
-        used:      oddsRes.headers.get('x-requests-used'),
-      };
-      if (oddsRes.ok) {
-        const raw = await oddsRes.json();
-        if (Array.isArray(raw)) {
-          for (const event of raw) {
-            const key = `${event.home_team}|${event.away_team}`;
-            const lines = { moneyline: {}, runline: {}, total: {} };
+    // Try both regular-season and spring-training sport keys
+    const sportKeys = ['baseball_mlb', 'baseball_mlb_preseason'];
+    for (const sportKey of sportKeys) {
+      const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`;
+      try {
+        const oddsRes = await fetch(oddsUrl, { signal: AbortSignal.timeout(6000) });
+        oddsQuota = {
+          remaining: oddsRes.headers.get('x-requests-remaining'),
+          used:      oddsRes.headers.get('x-requests-used'),
+        };
+        if (oddsRes.ok) {
+          const raw = await oddsRes.json();
+          if (Array.isArray(raw) && raw.length > 0) {
+            oddsRawCount += raw.length;
+            for (const event of raw) {
+              const key = `${event.home_team}|${event.away_team}`;
+              const lines = { moneyline: {}, runline: {}, total: {} };
 
-            for (const bk of (event.bookmakers ?? [])) {
-              for (const market of (bk.markets ?? [])) {
-                if (market.key === 'h2h') {
-                  for (const o of market.outcomes) {
-                    const side = o.name === event.home_team ? 'home' : 'away';
-                    if (!lines.moneyline[side] || bk.key === 'fanduel') {
-                      lines.moneyline[side] = { price: o.price, book: bk.title };
+              for (const bk of (event.bookmakers ?? [])) {
+                for (const market of (bk.markets ?? [])) {
+                  if (market.key === 'h2h') {
+                    for (const o of market.outcomes) {
+                      const side = o.name === event.home_team ? 'home' : 'away';
+                      if (!lines.moneyline[side] || bk.key === 'fanduel') {
+                        lines.moneyline[side] = { price: o.price, book: bk.title };
+                      }
                     }
                   }
-                }
-                if (market.key === 'spreads') {
-                  for (const o of market.outcomes) {
-                    const side = o.name === event.home_team ? 'home' : 'away';
-                    if (!lines.runline[side] || bk.key === 'fanduel') {
-                      lines.runline[side] = { price: o.price, point: o.point, book: bk.title };
+                  if (market.key === 'spreads') {
+                    for (const o of market.outcomes) {
+                      const side = o.name === event.home_team ? 'home' : 'away';
+                      if (!lines.runline[side] || bk.key === 'fanduel') {
+                        lines.runline[side] = { price: o.price, point: o.point, book: bk.title };
+                      }
                     }
                   }
-                }
-                if (market.key === 'totals') {
-                  if (!lines.total.over && market.outcomes?.length) {
-                    const over  = market.outcomes.find(o => o.name === 'Over');
-                    const under = market.outcomes.find(o => o.name === 'Under');
-                    lines.total = {
-                      line:  over?.point ?? null,
-                      over:  { price: over?.price,  book: bk.title },
-                      under: { price: under?.price, book: bk.title },
-                    };
+                  if (market.key === 'totals') {
+                    if (!lines.total.over && market.outcomes?.length) {
+                      const over  = market.outcomes.find(o => o.name === 'Over');
+                      const under = market.outcomes.find(o => o.name === 'Under');
+                      lines.total = {
+                        line:  over?.point ?? null,
+                        over:  { price: over?.price,  book: bk.title },
+                        under: { price: under?.price, book: bk.title },
+                      };
+                    }
                   }
                 }
               }
+              oddsMap[key] = lines;
             }
-            oddsMap[key] = lines;
+          }
+        } else if (!oddsRes.ok) {
+          const errBody = await oddsRes.text();
+          // 422 = sport key not found (spring training not available), continue to next key
+          if (!oddsRes.status === 422) {
+            oddsError = errBody.slice(0, 200);
+            break;
           }
         }
-      } else {
-        const errBody = await oddsRes.text();
-        oddsError = errBody.slice(0, 200);
+      } catch (e) {
+        oddsError = e.message;
       }
-    } catch (e) {
-      oddsError = e.message;
     }
   }
 
   // ── 4. Match MLB games to odds, compute edges ─────────────────────────────
+  // Normalize: lowercase last word of team name (e.g. "Astros", "Red Sox" → "sox")
+  const teamKey = name => name?.toLowerCase().split(' ').pop() ?? '';
+  const nameMatch = (mlbName, oddsName) => {
+    if (!mlbName || !oddsName) return false;
+    const ml = mlbName.toLowerCase();
+    const od = oddsName.toLowerCase();
+    return ml === od || ml.includes(teamKey(oddsName)) || od.includes(teamKey(mlbName));
+  };
+
   const games = mlbGames.map(g => {
-    // Try to find matching odds event (fuzzy team name match)
     let matchedLines = null;
     for (const [key, lines] of Object.entries(oddsMap)) {
       const [oddsHome, oddsAway] = key.split('|');
-      const homeMatch = g.home.name.includes(oddsHome.split(' ').pop()) || oddsHome.includes(g.home.abbr);
-      const awayMatch = g.away.name.includes(oddsAway.split(' ').pop()) || oddsAway.includes(g.away.abbr);
-      if (homeMatch && awayMatch) { matchedLines = lines; break; }
-      // Try reverse
-      const homeMatch2 = g.home.name.includes(oddsAway.split(' ').pop()) || oddsAway.includes(g.home.abbr);
-      const awayMatch2 = g.away.name.includes(oddsHome.split(' ').pop()) || oddsHome.includes(g.away.abbr);
-      if (homeMatch2 && awayMatch2) {
-        // Swap home/away
+      if (nameMatch(g.home.name, oddsHome) && nameMatch(g.away.name, oddsAway)) {
+        matchedLines = lines; break;
+      }
+      // Try reversed (odds API sometimes flips home/away)
+      if (nameMatch(g.home.name, oddsAway) && nameMatch(g.away.name, oddsHome)) {
         matchedLines = {
           moneyline: { home: lines.moneyline.away, away: lines.moneyline.home },
           runline:   { home: lines.runline.away,   away: lines.runline.home },
@@ -261,6 +276,7 @@ export default async function handler(req, res) {
     hasApiKey: !!apiKey,
     oddsQuota,
     oddsError,
+    oddsRawCount,
     gamesWithOdds: games.filter(g => g.hasOdds).length,
     valueGames:    games.filter(g => g.bestBet?.rank >= 3).length,
   });
