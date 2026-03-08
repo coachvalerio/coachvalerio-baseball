@@ -16,12 +16,6 @@
 //         avg_break_x, avg_break_z (or pitcher_break_x/z)
 //   → velo + spin + break per pitch type
 
-function getCurrentSeasonYear() {
-  const now = new Date();
-  const y   = now.getFullYear();
-  return now >= new Date(y, 2, 20) ? y : y - 1;  // pre-March-20 → prior season
-}
-
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Accept': 'text/csv,text/plain,*/*',
@@ -84,10 +78,9 @@ const wavg = (rows, field, wField) => {
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
-  const { id, year:yearParam, debug } = req.query;
+  const { id, year=new Date().getFullYear(), debug } = req.query;
   if (!id) return res.status(400).json({ error:'Missing player id' });
-  const year   = yearParam ?? getCurrentSeasonYear();
-  const numId  = parseInt(id, 10);
+  const numId = parseInt(id, 10);
 
   // ── Step 1: Source A + Source C in parallel ────────────────────────────────
   const [resA, resC] = await Promise.allSettled([
@@ -117,26 +110,28 @@ export default async function handler(req, res) {
     groupsA[pt].push(r);
   }
 
-  // pitch_usage is a 0–1 decimal per row in Source A (e.g. 0.0432 = 4.32%)
-  // sum per pitch type to get total usage
-  const usageByType = {};
-  let totalUsage = 0;
+  // Compute usage from raw pitch COUNTS — not pitch_usage fractions.
+  // Summing pitch_usage (already 0-1) then re-normalizing compounds errors,
+  // especially for mid-season trades with multiple rows per pitch type.
+  // Raw counts match Savant's displayed percentages exactly.
+  const countByType = {};
+  let totalPitchCount = 0;
   for (const [pt, rows] of Object.entries(groupsA)) {
-    const u = rows.reduce((s,r) => s+(flt(r,'pitch_usage')??0), 0);
-    usageByType[pt] = u;
-    totalUsage += u;
+    const c = rows.reduce((s,r) => s+(flt(r,'pitches')??0), 0);
+    countByType[pt] = c;
+    totalPitchCount += c;
   }
 
   // Determine which pitch types this player actually throws (>= 1% usage)
-  const activePitchTypes = Object.entries(usageByType)
-    .filter(([pt, u]) => totalUsage > 0 ? (u/totalUsage)*100 >= 1.0 : u > 0)
+  const activePitchTypes = Object.entries(countByType)
+    .filter(([pt, c]) => totalPitchCount > 0 ? (c/totalPitchCount)*100 >= 1.0 : c > 0)
     .map(([pt]) => pt);
 
   if (debug) {
     return res.status(200).json({
       A_cols: hA, A_sample: rawA[0]??null, A_rowCount: rawA.length,
       C_cols: hC, C_playerRow: playerSpeedRow,
-      activePitchTypes, usageByType,
+      activePitchTypes, countByType, totalPitchCount,
     });
   }
 
@@ -172,9 +167,8 @@ export default async function handler(req, res) {
   const pitches = Object.entries(groupsA)
     .filter(([pt]) => activePitchTypes.includes(pt)) // >= 1% usage filter
     .map(([pt, rows]) => {
-      const usageRaw = usageByType[pt] ?? 0;
-      const usage    = totalUsage > 0 ? (usageRaw/totalUsage)*100 : null;
-      const pitchCount = rows.reduce((s,r) => s+(flt(r,'pitches')??1), 0);
+      const pitchCount = rows.reduce((s,r) => s+(flt(r,'pitches')??0), 0);
+      const usage      = totalPitchCount > 0 ? (pitchCount/totalPitchCount)*100 : null;
       const col      = SPEED_COL[pt];
       const moveRow  = movementByType[pt] ?? {};
 
