@@ -662,8 +662,8 @@ function MovementChart({ pitches }) {
         <text x={cx+4} y={H-4} textAnchor="start" fill="#3a3f52" fontSize={8} fontFamily="Barlow Condensed">DROP</text>
         {/* Pitch dots */}
         {pitches.map((p, i) => {
-          const bx = parseFloat(p.avg_pfx_x ?? p.pfx_x ?? 0);
-          const bz = parseFloat(p.avg_pfx_z ?? p.pfx_z ?? 0);
+          const bx = p.avg_break_x ?? (p.pfx_x_ft !== null ? p.pfx_x_ft * 12 : 0);
+          const bz = p.avg_break_z ?? (p.pfx_z_ft !== null ? p.pfx_z_ft * 12 : 0);
           if (isNaN(bx) || isNaN(bz)) return null;
           const px = cx + bx * scale;
           const py = cy - bz * scale;
@@ -672,7 +672,7 @@ function MovementChart({ pitches }) {
             <g key={i}>
               <circle cx={px} cy={py} r={10} fill={col} fillOpacity={0.18} stroke={col} strokeWidth={1.5}/>
               <text x={px} y={py+4} textAnchor="middle" fill={col} fontSize={8} fontFamily="Barlow Condensed" fontWeight={700}>
-                {p.pitch_type ?? p.pitch_name?.split(' ').map(w=>w[0]).join('')}
+                {p.pitch_type}
               </text>
             </g>
           );
@@ -762,21 +762,20 @@ function ArsenalTab({ id, colors, player }) {
       .then(r => r.json())
       .then(d => {
         if (d.error) { setError('No arsenal data available for this season.'); setLoading(false); return; }
-        const rows = (d.rows ?? []).filter(r => r.pitch_type || r.pitch_name);
+        const rows = (d.pitches ?? d.rows ?? []).filter(r => r.pitch_type && r.pitch_type !== '—');
         setArsenal(rows);
-        if (rows.length > 0) setSelPitch(rows[0].pitch_type ?? rows[0].pitch_name);
+        if (rows.length > 0) setSelPitch(rows[0].pitch_type);
         setLoading(false);
       })
       .catch(() => { setError('Could not load arsenal data.'); setLoading(false); });
   }, [id, year]);
 
-  const fv = (r, k) => { const v = parseFloat(r[k]); return isNaN(v) ? '—' : v; };
-  const fmt1 = v => typeof v === 'number' ? v.toFixed(1) : v;
-  const fmt3 = v => typeof v === 'number' ? v.toFixed(3) : v;
-  const pct  = v => typeof v === 'number' ? v.toFixed(1)+'%' : v;
+  const fmtN = (v, dec=1) => v !== null && v !== undefined ? v.toFixed(dec) : '—';
+  const fmtPct = v => v !== null && v !== undefined ? v.toFixed(1)+'%' : '—';
+  const fmtStat = v => v !== null && v !== undefined ? v.toFixed(3) : '—';
 
-  // Total pitches for usage %
-  const totalPitches = arsenal.reduce((s, r) => s + (parseInt(r.pitches) || 0), 0);
+  // Total pitches for usage fallback (if usage_pct not available)
+  const totalPitches = arsenal.reduce((s, r) => s + (r.pitches || 0), 0);
 
   return (
     <div>
@@ -825,9 +824,11 @@ function ArsenalTab({ id, colors, player }) {
                 </thead>
                 <tbody>
                   {arsenal.map((r, i) => {
-                    const pName = r.pitch_name ?? r.pitch_type ?? '—';
-                    const col   = pitchColor(r.pitch_type ?? pName);
-                    const usage = totalPitches > 0 ? ((parseInt(r.pitches)||0)/totalPitches*100) : 0;
+                    const pName = r.pitch_name !== '—' ? r.pitch_name : r.pitch_type;
+                    const col   = pitchColor(r.pitch_type);
+                    const usage = r.usage_pct !== null && r.usage_pct !== undefined
+                      ? r.usage_pct
+                      : (totalPitches > 0 ? (r.pitches||0)/totalPitches*100 : 0);
                     return (
                       <tr key={i}
                         onClick={() => setSelPitch(r.pitch_type)}
@@ -839,19 +840,19 @@ function ArsenalTab({ id, colors, player }) {
                           </div>
                           {/* Usage bar */}
                           <div style={{ height:'3px', background:'#1e2028', borderRadius:'2px', marginTop:'4px', width:'100px' }}>
-                            <div style={{ height:'100%', width:`${usage}%`, background:col, borderRadius:'2px', transition:'width .3s' }} />
+                            <div style={{ height:'100%', width:`${Math.min(usage,100)}%`, background:col, borderRadius:'2px', transition:'width .3s' }} />
                           </div>
                         </td>
                         <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{usage.toFixed(1)}%</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: colors.primary, fontWeight:600 }}>{fmt1(fv(r,'avg_speed'))}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{Math.round(fv(r,'avg_spin')||0)||'—'}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{fmt1(fv(r,'avg_break_x'))}"</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{fmt1(fv(r,'avg_break_z'))}"</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: parseFloat(r.whiff_percent)>30?'#00c2a8':'#c8cce0' }}>{r.whiff_percent||'—'}{r.whiff_percent?'%':''}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.k_percent||'—'}{r.k_percent?'%':''}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.ba||'—'}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.slg||'—'}</td>
-                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.woba||'—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: colors.primary, fontWeight:600 }}>{r.avg_speed !== null ? r.avg_speed.toFixed(1) : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.avg_spin !== null ? Math.round(r.avg_spin) : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.avg_break_x !== null ? r.avg_break_x.toFixed(1)+'"' : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.avg_break_z !== null ? r.avg_break_z.toFixed(1)+'"' : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color: r.whiff_pct>30?'#00c2a8':'#c8cce0' }}>{r.whiff_pct !== null ? r.whiff_pct.toFixed(1)+'%' : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.k_pct !== null ? r.k_pct.toFixed(1)+'%' : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.ba !== null ? r.ba.toFixed(3) : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.slg !== null ? r.slg.toFixed(3) : '—'}</td>
+                        <td style={{ textAlign:'right', padding:'.5rem .65rem', color:'#c8cce0' }}>{r.xwoba !== null ? r.xwoba.toFixed(3) : '—'}</td>
                       </tr>
                     );
                   })}
@@ -879,7 +880,7 @@ function ArsenalTab({ id, colors, player }) {
                   return (
                     <button key={i} onClick={()=>setSelPitch(r.pitch_type)}
                       style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.72rem', fontWeight:700, letterSpacing:'.08em', padding:'.3rem .65rem', borderRadius:'6px', border: `1px solid ${active ? col : '#1e2028'}`, background: active ? col+'22' : 'transparent', color: active ? col : '#5c6070', cursor:'pointer', transition:'all .15s' }}>
-                      {r.pitch_name ?? r.pitch_type}
+                      {r.pitch_name !== '—' ? r.pitch_name : r.pitch_type}
                     </button>
                   );
                 })}
@@ -893,14 +894,14 @@ function ArsenalTab({ id, colors, player }) {
                   <div style={{ borderTop:'1px solid #1e2028', paddingTop:'.75rem' }}>
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem' }}>
                       {[
-                        ['Avg Velocity', fmt1(fv(p,'avg_speed'))+' mph'],
-                        ['Spin Rate',    Math.round(fv(p,'avg_spin')||0)+' rpm'],
-                        ['H-Movement',  fmt1(fv(p,'avg_break_x'))+'"'],
-                        ['V-Movement',  fmt1(fv(p,'avg_break_z'))+'"'],
-                        ['Whiff %',     (p.whiff_percent||'—')+(p.whiff_percent?'%':'')],
-                        ['Put Away %',  (p.put_away||'—')+(p.put_away?'%':'')],
-                        ['BA Against',  p.ba||'—'],
-                        ['SLG Against', p.slg||'—'],
+                        ['Avg Velocity', p.avg_speed !== null ? p.avg_speed.toFixed(1)+' mph' : '—'],
+                        ['Spin Rate',    p.avg_spin !== null ? Math.round(p.avg_spin)+' rpm' : '—'],
+                        ['H-Movement',  p.avg_break_x !== null ? p.avg_break_x.toFixed(1)+'"' : '—'],
+                        ['V-Movement',  p.avg_break_z !== null ? p.avg_break_z.toFixed(1)+'"' : '—'],
+                        ['Whiff %',     p.whiff_pct !== null ? p.whiff_pct.toFixed(1)+'%' : '—'],
+                        ['Put Away %',  p.put_away !== null ? p.put_away.toFixed(1)+'%' : '—'],
+                        ['BA Against',  p.ba !== null ? p.ba.toFixed(3) : '—'],
+                        ['SLG Against', p.slg !== null ? p.slg.toFixed(3) : '—'],
                       ].map(([label,val])=>(
                         <div key={label} style={{ background:'#080c12', borderRadius:'6px', padding:'.4rem .6rem', borderLeft:`2px solid ${col}` }}>
                           <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', fontWeight:700, letterSpacing:'.1em', color:'#5c6070' }}>{label}</div>
