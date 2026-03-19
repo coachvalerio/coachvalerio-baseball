@@ -175,11 +175,10 @@ export default function PlayerPage() {
   const activeTrendMetric = trendMetric ?? defaultMetric;
 
   const TABS = [
-    { id: 'season',     label: `${SEASON} Season` },
+    { id: 'season',     label: 'Stats' },
     { id: 'highlights', label: '▶ Highlights' },
     { id: 'savant',     label: 'Statcast / Savant' },
     ...(isPit ? [{ id: 'arsenal', label: '⚾ Arsenal' }] : []),
-    { id: 'career',     label: 'Career' },
     { id: 'trends',     label: 'Trends & Odds' },
     { id: 'deep',       label: isPit ? 'By Inning' : 'Deep Stats' },
     { id: 'prediction', label: 'Prediction' },
@@ -268,13 +267,17 @@ export default function PlayerPage() {
 
       <main style={s.main}>
 
-        {/* ── 2025 SEASON ── */}
+        {/* ── STATS (Season + Career) ── */}
         {activeTab==='season' && (
           <div>
             <div style={{...s.secLabel,color:colors.primary}}>{SEASON} Season Statistics</div>
             <StatsCard title={isPit?'Pitching Stats':'Batting Stats'} tag={String(SEASON)} colors={colors}
               cols={[{k:'__tm',l:'Team'},...fullCols]}
               rows={seasonRows.map(r=>({__tm:r.team?.name??'—',...r.stat}))} />
+            <div style={{...s.secLabel,color:colors.primary,marginTop:'2rem'}}>Career — Year by Year</div>
+            <StatsCard title="All Seasons" tag="Career" colors={colors}
+              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
+              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
           </div>
         )}
 
@@ -282,16 +285,6 @@ export default function PlayerPage() {
         {activeTab==='savant' && (
           <div>
             <SavantTab id={id} stat={stat} isPitcher={isPit} colors={colors} savantUrl={savantUrl} />
-          </div>
-        )}
-
-        {/* ── CAREER ── */}
-        {activeTab==='career' && (
-          <div>
-            <div style={{...s.secLabel,color:colors.primary}}>Career — Year by Year</div>
-            <StatsCard title="All Seasons" tag="Career" colors={colors}
-              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
-              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
           </div>
         )}
 
@@ -746,10 +739,9 @@ function StrikeZoneChart({ pitches, selectedPitch }) {
 }
 
 function ArsenalTab({ id, colors, player }) {
-  const curYear  = new Date().getFullYear();
-  const defYear  = getCurrentSeason();   // respects pre-March-20 offset; avoids empty pre-season fetches
-  const YEARS    = Array.from({ length: curYear - 2017 + 1 }, (_, i) => curYear - i);
-  const [year, setYear] = useState(defYear);
+  const curYear = new Date().getFullYear();
+  const YEARS = Array.from({ length: curYear - 2017 + 1 }, (_, i) => curYear - i);
+  const [year, setYear] = useState(curYear);
   const [arsenal, setArsenal] = useState([]);
   const [pitches, setPitches] = useState([]); // per-pitch rows for location
   const [loading, setLoading] = useState(true);
@@ -776,7 +768,7 @@ function ArsenalTab({ id, colors, player }) {
   const fmtStat = v => v !== null && v !== undefined ? v.toFixed(3) : '—';
 
   // Total pitches for usage fallback (if usage_pct not available)
-  const totalPitches = arsenal.reduce((s, r) => s + (r.pitch_count || 0), 0);
+  const totalPitches = arsenal.reduce((s, r) => s + (r.pitches || 0), 0);
 
   return (
     <div>
@@ -829,7 +821,7 @@ function ArsenalTab({ id, colors, player }) {
                     const col   = pitchColor(r.pitch_type);
                     const usage = r.usage_pct !== null && r.usage_pct !== undefined
                       ? r.usage_pct
-                      : (totalPitches > 0 ? (r.pitch_count||0)/totalPitches*100 : 0);
+                      : (totalPitches > 0 ? (r.pitches||0)/totalPitches*100 : 0);
                     return (
                       <tr key={i}
                         onClick={() => setSelPitch(r.pitch_type)}
