@@ -175,10 +175,11 @@ export default function PlayerPage() {
   const activeTrendMetric = trendMetric ?? defaultMetric;
 
   const TABS = [
-    { id: 'season',     label: 'Stats' },
+    { id: 'season',     label: `${SEASON} Season` },
     { id: 'highlights', label: '▶ Highlights' },
     { id: 'savant',     label: 'Statcast / Savant' },
     ...(isPit ? [{ id: 'arsenal', label: '⚾ Arsenal' }] : []),
+    { id: 'career',     label: 'Career' },
     { id: 'trends',     label: 'Trends & Odds' },
     { id: 'deep',       label: isPit ? 'By Inning' : 'Deep Stats' },
     { id: 'prediction', label: 'Prediction' },
@@ -267,17 +268,13 @@ export default function PlayerPage() {
 
       <main style={s.main}>
 
-        {/* ── STATS — current season + full career ── */}
+        {/* ── 2025 SEASON ── */}
         {activeTab==='season' && (
           <div>
             <div style={{...s.secLabel,color:colors.primary}}>{SEASON} Season Statistics</div>
             <StatsCard title={isPit?'Pitching Stats':'Batting Stats'} tag={String(SEASON)} colors={colors}
               cols={[{k:'__tm',l:'Team'},...fullCols]}
               rows={seasonRows.map(r=>({__tm:r.team?.name??'—',...r.stat}))} />
-            <div style={{...s.secLabel,color:colors.primary,marginTop:'2rem'}}>Career — Year by Year</div>
-            <StatsCard title="All Seasons" tag="Career" colors={colors}
-              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
-              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
           </div>
         )}
 
@@ -285,6 +282,16 @@ export default function PlayerPage() {
         {activeTab==='savant' && (
           <div>
             <SavantTab id={id} stat={stat} isPitcher={isPit} colors={colors} savantUrl={savantUrl} />
+          </div>
+        )}
+
+        {/* ── CAREER ── */}
+        {activeTab==='career' && (
+          <div>
+            <div style={{...s.secLabel,color:colors.primary}}>Career — Year by Year</div>
+            <StatsCard title="All Seasons" tag="Career" colors={colors}
+              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
+              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
           </div>
         )}
 
@@ -351,15 +358,16 @@ export default function PlayerPage() {
 // SAVANT COLOR SCHEME — true to Baseball Savant
 // Red = elite/great, Blue = poor, Gray = average
 // ════════════════════════════════════════════════════════
-function savantColor(pct, lowerIsBetter = false) {
-  const p = lowerIsBetter ? 100 - pct : pct;
-  if (p >= 95) return '#c8102e'; // deep red — elite
-  if (p >= 80) return '#e8354a'; // red
-  if (p >= 67) return '#f47c7c'; // light red/pink
-  if (p >= 34) return '#9e9e9e'; // gray — average
-  if (p >= 20) return '#6baed6'; // light blue
-  if (p >= 5)  return '#2171b5'; // blue
-  return '#084594';              // deep blue — poor
+function savantColor(pct) {
+  // pct is already a normalized percentile (100 = elite, 0 = poor) from Savant.
+  // Never invert here — lowerIsBetter conversion belongs in estimatePct only.
+  if (pct >= 95) return '#c8102e'; // deep red   — elite
+  if (pct >= 80) return '#e8354a'; // red
+  if (pct >= 67) return '#f47c7c'; // light red/pink
+  if (pct >= 34) return '#9e9e9e'; // gray        — average
+  if (pct >= 20) return '#6baed6'; // light blue
+  if (pct >= 5)  return '#2171b5'; // blue
+  return '#084594';                // deep blue   — poor
 }
 
 // ════════════════════════════════════════════════════════
@@ -522,7 +530,7 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
             {groupTiles.map((t, i) => {
               const pct = data?.[t.savantKey] ?? t.estimatedPct;
               const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-              const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+              const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
               const barPct = pctNum ?? 50;
               return (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'.55rem 1.25rem', borderBottom:'1px solid #080c12' }}>
@@ -568,7 +576,7 @@ function SavantTileView({ tiles, data, colors }) {
       {tiles.map((t,i) => {
         const pct = data?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
         const barWidth = pctNum ?? Math.round((t.bar||0)*100);
         return (
           <div key={i} style={{ ...s.svTile, transition:'border-color .2s,transform .15s', borderColor: pctNum !== null ? col+'33' : '#1e2028' }}>
@@ -936,7 +944,7 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
       {tiles.map((t,i)=>{
         const pct = savantData?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
         const barWidth = pctNum !== null ? pctNum : Math.round((t.bar||0)*100);
         return (
           <div key={i} className="sv-tile" style={{...s.svTile,borderColor:pctNum?col+'33':'#1e2028'}}>
