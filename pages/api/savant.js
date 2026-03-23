@@ -139,6 +139,22 @@ export default async function handler(req, res) {
           }
         } catch {}
 
+        // ── Season pitching stats fallback (K/9, BB/9, WHIP) from MLB Stats API
+        // Used when the main page stat object is empty (spring training / opening week)
+        let k9Val = null, bb9Val = null, whipVal = null;
+        try {
+          const mlbStat = await fetch(
+            `https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=${yr}&gameType=R`,
+            { headers: H }
+          ).then(r => r.ok ? r.json() : null);
+          const st = mlbStat?.stats?.[0]?.splits?.[0]?.stat ?? null;
+          if (st) {
+            k9Val  = st.strikeoutsPer9Inn  ?? null;
+            bb9Val = st.baseOnBallsPer9Inn ?? null;
+            whipVal = st.whip ?? null;
+          }
+        } catch {}
+
         // ── Avg Fastball (not in statcast/xstat/pct CSVs — fetch from pitch-arsenals)
         let avgFastballFetched = null;
         try {
@@ -153,6 +169,30 @@ export default async function handler(req, res) {
               // ff_avg_speed is 4-seam fastball avg velo
               const v = parseFloat(arow.ff_avg_speed ?? arow.si_avg_speed ?? arow.fc_avg_speed ?? '');
               if (!isNaN(v)) avgFastballFetched = v;
+            }
+          }
+        } catch {}
+
+        // ── Whiff% raw (not in statcast/pct CSVs — average from pitch-arsenal-stats)
+        let whiffFetched = null;
+        try {
+          const wtxt = await fetch(
+            `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${yr}&team=&min=0&player_id=${id}&csv=true`,
+            { headers: H }
+          ).then(r => r.ok ? r.text() : '');
+          if (wtxt && !wtxt.trimStart().startsWith('<')) {
+            const wrows = parseCSV(wtxt);
+            // first_name col = player_id in this CSV (confirmed from arsenal debug)
+            const playerRows = wrows.filter(r => String(r.first_name) === String(id));
+            if (playerRows.length > 0) {
+              // weighted average whiff_percent by pitch count (pitches col = usage%)
+              let num = 0, den = 0;
+              for (const r of playerRows) {
+                const w = parseFloat(r.whiff_percent ?? '');
+                const wt = parseFloat(r.pitches ?? '1');
+                if (!isNaN(w)) { num += w * wt; den += wt; }
+              }
+              if (den > 0) whiffFetched = num / den;
             }
           }
         } catch {}
@@ -234,21 +274,16 @@ export default async function handler(req, res) {
           const avgFastball = avgFastballFetched ?? raw('ff_avg_speed','fastball_avg_speed','avg_fastball');
 
           // whiff%: statcast pitcher leaderboard
-          const whiffRaw = raw(
-            'whiff_percent',
-            'p_whiff_percent',
-            'whiff_pct',
-            'swing_miss_pct',
-            'swinging_strike_pct',
-            'swstr_pct',
-          );
+          // whiff raw: fetched from pitch-arsenal-stats above (not in statcast/pct CSVs)
+          const whiffRaw = whiffFetched != null ? whiffFetched
+            : raw('whiff_percent','p_whiff_percent','whiff_pct','swing_miss_pct');
 
           // hard hit% and barrel%: statcast pitcher leaderboard
           const hardHitRaw = raw(
+            'ev95percent',           // confirmed column name in statcast pitcher CSV
             'hard_hit_percent',
             'hard_hit_rate',
             'hard_hit',
-            'p_hard_hit_percent',
           );
 
           const barrelRaw = raw(
@@ -279,10 +314,9 @@ export default async function handler(req, res) {
           );
 
           const hardHitP = pct(
+            'hard_hit_percent',      // confirmed column name in percentile CSV
             'hard_hit',
-            'hard_hit_percent',
             'hard_hit_rate',
-            'p_hard_hit',
           );
 
           const whiffP = pct(
@@ -294,6 +328,12 @@ export default async function handler(req, res) {
 
           return res.status(200).json({
             available: true, playerType: 'pitcher', season: yr,
+            // Season stats from xstat CSV — fallback when MLB Stats API returns no data
+            // (e.g. spring training, before opening day)
+            era_val:       dec(raw('era','p_era'), 2),
+            whip_val:      whipVal,
+            k9_val:        k9Val,
+            bb9_val:       bb9Val,
             xera:          dec(raw('xera','p_xera','est_era'), 2),
             avg_fastball:  dec(avgFastball, 1),
             whiff:         pctF(whiffRaw),
