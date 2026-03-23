@@ -139,6 +139,24 @@ export default async function handler(req, res) {
           }
         } catch {}
 
+        // ── Avg Fastball (not in statcast/xstat/pct CSVs — fetch from pitch-arsenals)
+        let avgFastballFetched = null;
+        try {
+          const atxt = await fetch(
+            `https://baseballsavant.mlb.com/leaderboard/pitch-arsenals?year=${yr}&min=0&type=avg_speed&hand=&csv=true`,
+            { headers: H }
+          ).then(r => r.ok ? r.text() : '');
+          if (atxt && !atxt.trimStart().startsWith('<')) {
+            const arows = parseCSV(atxt);
+            const arow  = arows.find(r => String(r.pitcher) === String(id));
+            if (arow) {
+              // ff_avg_speed is 4-seam fastball avg velo
+              const v = parseFloat(arow.ff_avg_speed ?? arow.si_avg_speed ?? arow.fc_avg_speed ?? '');
+              if (!isNaN(v)) avgFastballFetched = v;
+            }
+          }
+        } catch {}
+
         const raw = (...keys) => {
           for (const k of keys) {
             const v = vals[k];
@@ -212,18 +230,8 @@ export default async function handler(req, res) {
 
         } else {
           // ── Pitcher raw values ──────────────────────────────────────────────
-          // avg_fastball: statcast pitcher leaderboard columns confirmed variants
-          const avgFastball = raw(
-            'ff_avg_speed',          // most common
-            'fastball_avg_speed',
-            'avg_fastball',
-            'p_ff_avg_speed',
-            'ff_avg_speed',
-            'velocity',
-            'avg_speed',             // sometimes used in older CSVs
-            'fastball_velocity',
-            'release_speed',
-          );
+          // avg_fastball: sourced from pitch-arsenals fetch above (not in statcast/pct CSVs)
+          const avgFastball = avgFastballFetched ?? raw('ff_avg_speed','fastball_avg_speed','avg_fastball');
 
           // whiff%: statcast pitcher leaderboard
           const whiffRaw = raw(
@@ -256,21 +264,18 @@ export default async function handler(req, res) {
           // ── Pitcher percentile lookups ──────────────────────────────────────
           // Savant percentile CSV for pitchers uses these key names (confirmed patterns)
           const veloP = pct(
-            'fastball_speed',        // most common in percentile CSV
+            'fb_velocity',           // confirmed column name in percentile CSV
+            'fastball_speed',
             'ff_avg_speed',
             'avg_fastball',
-            'p_fastball_speed',
-            'velocity',
           );
 
           const barrelP = pct(
-            'barrel_batted_rate',    // confirmed key in pitcher percentile CSV
+            'brl_percent',           // confirmed column name in percentile CSV
+            'barrel_batted_rate',
             'barrel',
             'brl_pa',
-            'brl_percent',
             'brl_per_pa',
-            'p_barrel',
-            'p_brl_pa',
           );
 
           const hardHitP = pct(
