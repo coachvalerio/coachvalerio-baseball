@@ -175,11 +175,10 @@ export default function PlayerPage() {
   const activeTrendMetric = trendMetric ?? defaultMetric;
 
   const TABS = [
-    { id: 'season',     label: `${SEASON} Season` },
+    { id: 'season',     label: 'Stats' },
     { id: 'highlights', label: '▶ Highlights' },
     { id: 'savant',     label: 'Statcast / Savant' },
     ...(isPit ? [{ id: 'arsenal', label: '⚾ Arsenal' }] : []),
-    { id: 'career',     label: 'Career' },
     { id: 'trends',     label: 'Trends & Odds' },
     { id: 'deep',       label: isPit ? 'By Inning' : 'Deep Stats' },
     { id: 'prediction', label: 'Prediction' },
@@ -268,13 +267,17 @@ export default function PlayerPage() {
 
       <main style={s.main}>
 
-        {/* ── 2025 SEASON ── */}
+        {/* ── STATS — current season + full career ── */}
         {activeTab==='season' && (
           <div>
             <div style={{...s.secLabel,color:colors.primary}}>{SEASON} Season Statistics</div>
             <StatsCard title={isPit?'Pitching Stats':'Batting Stats'} tag={String(SEASON)} colors={colors}
               cols={[{k:'__tm',l:'Team'},...fullCols]}
               rows={seasonRows.map(r=>({__tm:r.team?.name??'—',...r.stat}))} />
+            <div style={{...s.secLabel,color:colors.primary,marginTop:'2rem'}}>Career — Year by Year</div>
+            <StatsCard title="All Seasons" tag="Career" colors={colors}
+              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
+              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
           </div>
         )}
 
@@ -285,23 +288,13 @@ export default function PlayerPage() {
           </div>
         )}
 
-        {/* ── CAREER ── */}
-        {activeTab==='career' && (
-          <div>
-            <div style={{...s.secLabel,color:colors.primary}}>Career — Year by Year</div>
-            <StatsCard title="All Seasons" tag="Career" colors={colors}
-              cols={[{k:'__yr',l:'Year'},{k:'__tm',l:'Team'},...fullCols]}
-              rows={careerRows.map(r=>({__yr:r.season,__tm:r.team?.name??'—',...r.stat}))} />
-          </div>
-        )}
-
         {/* ── TRENDS & ODDS ── */}
         {activeTab==='trends' && (
           <TrendsAndOdds
-            id={id} season={SEASON}
             careerRows={careerRows} isPitcher={isPit} colors={colors}
             activeTrendMetric={activeTrendMetric} setTrendMetric={setTrendMetric}
-            chartInsts={chartInsts}
+            trendView={trendView} setTrendView={setTrendView}
+            chartRefs={chartRefs} chartInsts={chartInsts}
             odds={odds} player={player} stat={stat}
           />
         )}
@@ -968,148 +961,67 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
 // ════════════════════════════════════════════════════════
 // TRENDS & ODDS TAB
 // ════════════════════════════════════════════════════════
-function TrendsAndOdds({ id, season, careerRows, isPitcher, colors, activeTrendMetric, setTrendMetric, chartInsts, odds, player, stat }) {
+function TrendsAndOdds({ careerRows, isPitcher, colors, activeTrendMetric, setTrendMetric, trendView, setTrendView, chartRefs, chartInsts, odds, player, stat }) {
 
   const BAT_METRICS = [
-    {key:'avg',label:'AVG'}, {key:'ops',label:'OPS'},
-    {key:'homeRuns',label:'HR'}, {key:'rbi',label:'RBI'},
-    {key:'hits',label:'H'}, {key:'obp',label:'OBP'},
-    {key:'slg',label:'SLG'}, {key:'strikeOuts',label:'K'},
+    {key:'avg',   label:'AVG'},   {key:'ops',   label:'OPS'},
+    {key:'homeRuns',label:'HR'},  {key:'rbi',   label:'RBI'},
+    {key:'hits',  label:'H'},     {key:'obp',   label:'OBP'},
+    {key:'slg',   label:'SLG'},   {key:'strikeOuts',label:'K'},
     {key:'stolenBases',label:'SB'},
   ];
   const PIT_METRICS = [
-    {key:'era',label:'ERA'}, {key:'whip',label:'WHIP'},
+    {key:'era',   label:'ERA'},   {key:'whip',  label:'WHIP'},
     {key:'strikeOuts',label:'K'}, {key:'strikeoutsPer9Inn',label:'K/9'},
-    {key:'inningsPitched',label:'IP'}, {key:'baseOnBalls',label:'BB'},
+    {key:'wins',  label:'W'},     {key:'inningsPitched',label:'IP'},
+    {key:'baseOnBalls',label:'BB'},{key:'baseOnBallsPer9Inn',label:'BB/9'},
   ];
-  const metrics     = isPitcher ? PIT_METRICS : BAT_METRICS;
-  const lowerBetter = ['era','whip','baseOnBalls','baseOnBallsPer9Inn'].includes(activeTrendMetric);
+  const metrics = isPitcher ? PIT_METRICS : BAT_METRICS;
+  const lowerBetter = ['era','whip','baseOnBallsPer9Inn','strikeOuts_pit'].includes(activeTrendMetric);
 
-  const [weeklyData, setWeeklyData]   = useState([]);
-  const [wkLoading, setWkLoading]     = useState(true);
-
-  // ── Fetch game log and aggregate by calendar week ─────────────────────────
-  useEffect(() => {
-    if (!id || !season) return;
-    setWkLoading(true);
-    const group = isPitcher ? 'pitching' : 'hitting';
-    fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=${group}&season=${season}&gameType=R`)
-      .then(r => r.json())
-      .then(data => {
-        const splits = data?.stats?.[0]?.splits ?? [];
-
-        // Group by ISO week (Mon–Sun)
-        const byWeek = {};
-        for (const s of splits) {
-          const d   = new Date(s.date);
-          const day = d.getDay(); // 0=Sun
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-          const mon = new Date(d); mon.setDate(diff);
-          const key = mon.toISOString().slice(0,10);
-          if (!byWeek[key]) byWeek[key] = [];
-          byWeek[key].push(s.stat);
-        }
-
-        // Aggregate per week
-        const weeks = Object.entries(byWeek).sort(([a],[b])=>a.localeCompare(b)).map(([weekStart, games]) => {
-          if (isPitcher) {
-            let outs = 0;
-            for (const g of games) {
-              const ip = parseFloat(g.inningsPitched || 0);
-              outs += Math.floor(ip)*3 + Math.round((ip - Math.floor(ip))*10);
-            }
-            const ip  = (Math.floor(outs/3) + (outs%3)/10);
-            const er  = games.reduce((s,g) => s+(parseInt(g.earnedRuns)||0), 0);
-            const h   = games.reduce((s,g) => s+(parseInt(g.hits)||0), 0);
-            const bb  = games.reduce((s,g) => s+(parseInt(g.baseOnBalls)||0), 0);
-            const k   = games.reduce((s,g) => s+(parseInt(g.strikeOuts)||0), 0);
-            const w   = games.reduce((s,g) => s+(parseInt(g.wins)||0), 0);
-            return {
-              label: weekStart.slice(5).replace('-','/'),
-              era:   outs > 0 ? parseFloat(((er/outs)*27).toFixed(2)) : 0,
-              whip:  outs > 0 ? parseFloat((((h+bb)/outs)*3).toFixed(2)) : 0,
-              strikeOuts: k,
-              strikeoutsPer9Inn: outs > 0 ? parseFloat(((k/outs)*27).toFixed(1)) : 0,
-              inningsPitched: parseFloat(ip.toFixed(1)),
-              baseOnBalls: bb,
-              wins: w,
-            };
-          } else {
-            const H  = games.reduce((s,g) => s+(parseInt(g.hits)||0), 0);
-            const AB = games.reduce((s,g) => s+(parseInt(g.atBats)||0), 0);
-            const BB = games.reduce((s,g) => s+(parseInt(g.baseOnBalls)||0), 0);
-            const HR = games.reduce((s,g) => s+(parseInt(g.homeRuns)||0), 0);
-            const RBI= games.reduce((s,g) => s+(parseInt(g.rbi)||0), 0);
-            const TB = games.reduce((s,g) => s+(parseInt(g.totalBases)||0), 0);
-            const HBP= games.reduce((s,g) => s+(parseInt(g.hitByPitch)||0), 0);
-            const SF = games.reduce((s,g) => s+(parseInt(g.sacFlies)||0), 0);
-            const K  = games.reduce((s,g) => s+(parseInt(g.strikeOuts)||0), 0);
-            const SB = games.reduce((s,g) => s+(parseInt(g.stolenBases)||0), 0);
-            const obp = (AB+BB+HBP+SF) > 0 ? (H+BB+HBP)/(AB+BB+HBP+SF) : 0;
-            const slg = AB > 0 ? TB/AB : 0;
-            return {
-              label: weekStart.slice(5).replace('-','/'),
-              avg:   AB > 0 ? parseFloat((H/AB).toFixed(3)) : 0,
-              obp:   parseFloat(obp.toFixed(3)),
-              slg:   parseFloat(slg.toFixed(3)),
-              ops:   parseFloat((obp+slg).toFixed(3)),
-              homeRuns: HR, rbi: RBI, hits: H,
-              baseOnBalls: BB, strikeOuts: K, stolenBases: SB,
-            };
-          }
-        });
-        setWeeklyData(weeks);
-        setWkLoading(false);
-      })
-      .catch(() => setWkLoading(false));
-  }, [id, season, isPitcher]);
-
-  // ── Build chart when data or metric changes ───────────────────────────────
-  const labels = weeklyData.map(w => w.label);
-  const vals   = weeklyData.map(w => w[activeTrendMetric] ?? 0);
+  // Build season chart data
+  const last10 = careerRows.slice(-10);
+  const seasonLabels = last10.map(r => r.season);
+  const seasonVals   = last10.map(r => parseFloat(r.stat?.[activeTrendMetric]??0)||0);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.Chart || !labels.length) return;
+    if (typeof window === 'undefined' || !window.Chart) return;
     const ctx = document.getElementById('trend-main');
     if (!ctx) return;
     if (chartInsts.current['main']) chartInsts.current['main'].destroy();
     chartInsts.current['main'] = new window.Chart(ctx.getContext('2d'), {
       type: 'line',
       data: {
-        labels,
+        labels: seasonLabels,
         datasets: [{
-          label: metrics.find(m=>m.key===activeTrendMetric)?.label ?? activeTrendMetric.toUpperCase(),
-          data: vals,
+          label: activeTrendMetric.toUpperCase(),
+          data: seasonVals,
           borderColor: colors.primary,
           backgroundColor: colors.primary+'18',
           pointBackgroundColor: colors.primary,
           pointBorderColor: '#050608',
-          pointRadius: 4, tension: .35, fill: true,
+          pointRadius: 5, tension: .35, fill: true,
         }]
       },
       options: {
         responsive: true,
         plugins: { legend: { labels: { color:'#b8bdd0', font:{family:"'Barlow Condensed',sans-serif",size:13,weight:'600'} } } },
         scales: {
-          x: { ticks:{color:'#5c6070',maxRotation:45,font:{size:10}}, grid:{color:'rgba(28,30,40,.9)'} },
+          x: { ticks:{color:'#5c6070'}, grid:{color:'rgba(28,30,40,.9)'} },
           y: { ticks:{color:'#5c6070'}, grid:{color:'rgba(28,30,40,.9)'}, reverse: lowerBetter }
         }
       }
     });
-  }, [activeTrendMetric, weeklyData, colors]);
+  }, [activeTrendMetric, careerRows, colors]);
 
-  // Trend summary — current week vs previous week
-  const curWk  = weeklyData[weeklyData.length-1];
-  const prevWk = weeklyData[weeklyData.length-2];
-  const curVal  = curWk?.[activeTrendMetric];
-  const prevVal = prevWk?.[activeTrendMetric];
-  const improving = curVal != null && prevVal != null
-    ? (lowerBetter ? curVal < prevVal : curVal > prevVal)
-    : null;
+  // Trend summary
+  const first = seasonVals[0], latest = seasonVals[seasonVals.length-1];
+  const improving = lowerBetter ? latest < first : latest > first;
 
   return (
     <div>
-      <div style={{...s.secLabel,color:colors.primary}}>Week-by-Week Trends · {season}</div>
+      {/* ── Multi-stat trend ── */}
+      <div style={{...s.secLabel,color:colors.primary}}>Performance Trends</div>
 
       {/* Metric selector */}
       <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',marginBottom:'1rem'}}>
@@ -1122,55 +1034,42 @@ function TrendsAndOdds({ id, season, careerRows, isPitcher, colors, activeTrendM
         ))}
       </div>
 
-      {/* Chart */}
+      {/* Season chart */}
       <div style={s.chartCard}>
         <div style={{marginBottom:'.75rem',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070'}}>
-          Week-by-Week · {season} Regular Season
+          Year-by-Year · Last 10 Seasons
         </div>
-        {wkLoading
-          ? <div style={{textAlign:'center',padding:'2rem',color:'#3a3f52',fontSize:'.82rem'}}>Loading game log…</div>
-          : weeklyData.length === 0
-            ? <div style={{textAlign:'center',padding:'2rem',color:'#3a3f52',fontSize:'.82rem'}}>No game log data available yet for {season}.</div>
-            : <canvas id="trend-main" height={90}/>
-        }
+        <canvas id="trend-main" height={90}/>
       </div>
 
       {/* Trend summary */}
-      {improving !== null && curVal != null && prevVal != null && (
+      {seasonVals.length >= 2 && (
         <div style={{...s.card,padding:'1rem 1.4rem',fontSize:'.87rem',lineHeight:1.7,marginBottom:'2rem'}}>
           <span style={{color:improving?colors.primary:'#e63535',fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:'.1em',textTransform:'uppercase'}}>
-            {improving?'📈 Trending Up':'📉 Trending Down'}
+            {improving?'📈 Improving':'📉 Declining'}
           </span><br/>
-          {metrics.find(m=>m.key===activeTrendMetric)?.label ?? activeTrendMetric.toUpperCase()} was{' '}
-          <strong style={{color:'#f5a623'}}>{prevVal}</strong> last week →{' '}
-          <strong style={{color:colors.primary}}>{curVal}</strong> this week
-          {improving ? ' — moving in the right direction.' : ' — down from last week.'}
+          {activeTrendMetric.toUpperCase()} moved from <strong style={{color:'#f5a623'}}>{first}</strong> ({seasonLabels[0]}) to <strong style={{color:colors.primary}}>{latest}</strong> ({seasonLabels[seasonLabels.length-1]}) over {seasonVals.length} seasons.
         </div>
       )}
 
-      {/* Mini stat tiles — current week snapshot */}
-      {weeklyData.length > 0 && (
-        <>
-          <div style={{...s.secLabel,color:colors.primary,marginTop:'1.5rem'}}>This Week at a Glance</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:'.75rem',marginBottom:'2rem'}}>
-            {metrics.slice(0,6).map(m=>{
-              const cur  = curWk?.[m.key] ?? null;
-              const prev = prevWk?.[m.key] ?? null;
-              const lb   = ['era','whip','baseOnBalls','baseOnBallsPer9Inn'].includes(m.key);
-              const up   = cur != null && prev != null ? (lb ? cur < prev : cur > prev) : null;
-              return (
-                <div key={m.key} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.9rem .85rem',textAlign:'center'}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.25rem'}}>{m.label}</div>
-                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.9rem',color:'#f0f2f8',lineHeight:1}}>{cur ?? '—'}</div>
-                  {up !== null && (
-                    <div style={{fontSize:'.68rem',color:up?colors.primary:'#e63535',marginTop:'.2rem'}}>{up?'▲':'▼'} vs last wk</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+      {/* ── Mini multi-stat overview ── */}
+      <div style={{...s.secLabel,color:colors.primary,marginTop:'1.5rem'}}>Season at a Glance</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:'.75rem',marginBottom:'2rem'}}>
+        {metrics.slice(0,6).map(m=>{
+          const rowVals = last10.map(r=>parseFloat(r.stat?.[m.key]??0)||0);
+          const cur = rowVals[rowVals.length-1];
+          const prev = rowVals[rowVals.length-2]??cur;
+          const lb = ['era','whip','baseOnBallsPer9Inn'].includes(m.key);
+          const up = lb ? cur<prev : cur>prev;
+          return (
+            <div key={m.key} style={{background:'#0d1117',border:'1px solid #1e2028',borderRadius:'8px',padding:'.9rem .85rem',textAlign:'center'}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.62rem',fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',color:'#5c6070',marginBottom:'.25rem'}}>{m.label}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.9rem',color:'#f0f2f8',lineHeight:1}}>{cur||'—'}</div>
+              <div style={{fontSize:'.68rem',color:up?colors.primary:'#e63535',marginTop:'.2rem'}}>{up?'▲':'▼'} vs prev yr</div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* ── BEST BET ENGINE ── */}
       <div style={{...s.secLabel,color:colors.primary,marginTop:'1.5rem'}}>
@@ -1226,7 +1125,6 @@ function TrendsAndOdds({ id, season, careerRows, isPitcher, colors, activeTrendM
     </div>
   );
 }
-
 
 // ── Best Bet Panel ────────────────────────────────────────────────────────
 function BestBetPanel({ odds, colors, isPitcher }) {
