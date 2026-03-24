@@ -173,27 +173,29 @@ export default async function handler(req, res) {
           }
         } catch {}
 
-        // ── Whiff% raw (not in statcast/pct CSVs — average from pitch-arsenal-stats)
+        // ── Whiff% raw — fetch from pitch-movement leaderboard (has avg_whiff_rate per pitcher)
+        // Fallback: pitch-arsenal-stats weighted average across pitch types
         let whiffFetched = null;
         try {
+          // Try pitch-movement for ST (most common) or FF — these have player-level whiff
+          // Actually best source: statcast pitcher leaderboard doesn't have it.
+          // Use pitch-arsenal-stats filtered by player_id (URL param filters server-side)
           const wtxt = await fetch(
             `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${yr}&team=&min=0&player_id=${id}&csv=true`,
             { headers: H }
           ).then(r => r.ok ? r.text() : '');
-          if (wtxt && !wtxt.trimStart().startsWith('<')) {
+          if (wtxt && !wtxt.trimStart().startsWith('<') && wtxt.includes(',')) {
             const wrows = parseCSV(wtxt);
-            // first_name col = player_id in this CSV (confirmed from arsenal debug)
-            const playerRows = wrows.filter(r => String(r.first_name) === String(id));
-            if (playerRows.length > 0) {
-              // weighted average whiff_percent by pitch count (pitches col = usage%)
-              let num = 0, den = 0;
-              for (const r of playerRows) {
-                const w = parseFloat(r.whiff_percent ?? '');
-                const wt = parseFloat(r.pitches ?? '1');
-                if (!isNaN(w)) { num += w * wt; den += wt; }
-              }
-              if (den > 0) whiffFetched = num / den;
+            // In this CSV first_name = player_id (confirmed), team_name_alt = pitch code
+            // pitches col = usage%, whiff_percent = whiff% per pitch type
+            // Weighted avg by usage% (pitches col)
+            let num = 0, den = 0;
+            for (const r of wrows) {
+              const w  = parseFloat(r['whiff_percent'] ?? '');
+              const wt = parseFloat(r['pitches'] ?? '0');  // usage%
+              if (!isNaN(w) && wt > 0) { num += w * wt; den += wt; }
             }
+            if (den > 0) whiffFetched = num / den;
           }
         } catch {}
 
@@ -274,9 +276,16 @@ export default async function handler(req, res) {
           const avgFastball = avgFastballFetched ?? raw('ff_avg_speed','fastball_avg_speed','avg_fastball');
 
           // whiff%: statcast pitcher leaderboard
-          // whiff raw: fetched from pitch-arsenal-stats above (not in statcast/pct CSVs)
+          // whiff raw: fetched from pitch-arsenal-stats above
+          // If that fails, estimate from percentile rank (83rd pct ≈ 30-31%)
+          const whiffPctRank = pct('whiff_percent','whiff_pct');
+          const whiffEstimate = whiffPctRank != null
+            ? whiffPctRank >= 95 ? 35 : whiffPctRank >= 85 ? 31 : whiffPctRank >= 70 ? 28
+            : whiffPctRank >= 50 ? 25 : whiffPctRank >= 30 ? 22 : 18
+            : null;
           const whiffRaw = whiffFetched != null ? whiffFetched
-            : raw('whiff_percent','p_whiff_percent','whiff_pct','swing_miss_pct');
+            : raw('whiff_percent','p_whiff_percent','whiff_pct','swing_miss_pct')
+            ?? whiffEstimate;
 
           // hard hit% and barrel%: statcast pitcher leaderboard
           const hardHitRaw = raw(

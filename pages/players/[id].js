@@ -8,7 +8,7 @@ import Head from 'next/head';
 function getCurrentSeason() {
   const now = new Date();
   const year = now.getFullYear();
-  return now >= new Date(year, 3, 1) ? year : year - 1;  // April 1 — avoids blank stats during spring training
+  return now >= new Date(year, 3, 1) ? year : year - 1;  // April 1 — avoids blank stats in spring training
 }
 
 const TEAM_COLORS = {
@@ -358,15 +358,15 @@ export default function PlayerPage() {
 // SAVANT COLOR SCHEME — true to Baseball Savant
 // Red = elite/great, Blue = poor, Gray = average
 // ════════════════════════════════════════════════════════
-function savantColor(pct, lowerIsBetter = false) {
-  const p = lowerIsBetter ? 100 - pct : pct;
-  if (p >= 95) return '#c8102e'; // deep red — elite
-  if (p >= 80) return '#e8354a'; // red
-  if (p >= 67) return '#f47c7c'; // light red/pink
-  if (p >= 34) return '#9e9e9e'; // gray — average
-  if (p >= 20) return '#6baed6'; // light blue
-  if (p >= 5)  return '#2171b5'; // blue
-  return '#084594';              // deep blue — poor
+function savantColor(pct) {
+  // pct is already Savant-normalized: 100 = elite (red), 0 = poor (blue). Never invert here.
+  if (pct >= 95) return '#c8102e'; // deep red   — elite
+  if (pct >= 80) return '#e8354a'; // red
+  if (pct >= 67) return '#f47c7c'; // light red/pink
+  if (pct >= 34) return '#9e9e9e'; // gray        — average
+  if (pct >= 20) return '#6baed6'; // light blue
+  if (pct >= 5)  return '#2171b5'; // blue
+  return '#084594';                // deep blue   — poor
 }
 
 // ════════════════════════════════════════════════════════
@@ -529,7 +529,7 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
             {groupTiles.map((t, i) => {
               const pct = data?.[t.savantKey] ?? t.estimatedPct;
               const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-              const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+              const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
               const barPct = pctNum ?? 50;
               return (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'.55rem 1.25rem', borderBottom:'1px solid #080c12' }}>
@@ -575,7 +575,7 @@ function SavantTileView({ tiles, data, colors }) {
       {tiles.map((t,i) => {
         const pct = data?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
         const barWidth = pctNum ?? Math.round((t.bar||0)*100);
         return (
           <div key={i} style={{ ...s.svTile, transition:'border-color .2s,transform .15s', borderColor: pctNum !== null ? col+'33' : '#1e2028' }}>
@@ -943,7 +943,7 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
       {tiles.map((t,i)=>{
         const pct = savantData?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
         const barWidth = pctNum !== null ? pctNum : Math.round((t.bar||0)*100);
         return (
           <div key={i} className="sv-tile" style={{...s.svTile,borderColor:pctNum?col+'33':'#1e2028'}}>
@@ -2482,21 +2482,15 @@ function getBatTiles(s, savantData) {
 }
 
 function getPitTiles(s, savantData) {
-  // Fall back to savantData values during spring training / before opening day
-  // when the MLB Stats API season stat object is empty
-  const eraVal  = s.era  ?? savantData?.era_val  ?? null;
-  const whipVal = s.whip ?? savantData?.whip_val ?? null;
-  const k9Val   = s.strikeoutsPer9Inn  ?? savantData?.k9_val  ?? null;
-  const bb9Val  = s.baseOnBallsPer9Inn ?? savantData?.bb9_val ?? null;
-  const era=parseFloat(eraVal??0), whip=parseFloat(whipVal??0);
-  const k9=parseFloat(k9Val??0), bb9=parseFloat(bb9Val??0);
+  const era=parseFloat(s.era??0), whip=parseFloat(s.whip??0);
+  const k9=parseFloat(s.strikeoutsPer9Inn??0), bb9=parseFloat(s.baseOnBallsPer9Inn??0);
   const so=parseInt(s.strikeOuts??0);
   const xeraV = savantData?.xera ?? (era ? (era-.15).toFixed(2) : null);
   return [
-    {label:'ERA',             savantKey:'era_pct',       val:eraVal??'--',  sub:'Season', bar:era>0?Math.max(0,1-(era/7)):0, lowerIsBetter:true,  estimatedPct:savantData?.era_pct  ?? estimatePct('era',era,true)},
-    {label:'WHIP',            savantKey:'whip_pct',      val:whipVal??'--', sub:'Season', bar:whip>0?Math.max(0,1-(whip/3)):0, lowerIsBetter:true, estimatedPct:savantData?.whip_pct ?? estimatePct('whip',whip,true)},
-    {label:'K/9',             savantKey:'k9_pct',        val:k9Val??'--',   sub:'Per 9 inn.', bar:k9/16, estimatedPct:savantData?.k9_pct ?? estimatePct('k9',k9)},
-    {label:'BB/9',            savantKey:'bb9_pct',       val:bb9Val??'--',  sub:'Per 9 inn.', bar:bb9/10, lowerIsBetter:true, estimatedPct:savantData?.bb9_pct ?? estimatePct('bb9',bb9,true)},
+    {label:'ERA',             savantKey:'era_pct',       val:s.era??'--',   sub:'Season', bar:era>0?Math.max(0,1-(era/7)):0, lowerIsBetter:true,  estimatedPct:savantData?.era_pct  ?? estimatePct('era',era,true)},
+    {label:'WHIP',            savantKey:'whip_pct',      val:s.whip??'--',  sub:'Season', bar:whip>0?Math.max(0,1-(whip/3)):0, lowerIsBetter:true, estimatedPct:savantData?.whip_pct ?? estimatePct('whip',whip,true)},
+    {label:'K/9',             savantKey:'k9_pct',        val:s.strikeoutsPer9Inn??'--', sub:'Per 9 inn.', bar:k9/16, estimatedPct:savantData?.k9_pct ?? estimatePct('k9',k9)},
+    {label:'BB/9',            savantKey:'bb9_pct',       val:s.baseOnBallsPer9Inn??'--', sub:'Per 9 inn.', bar:bb9/10, lowerIsBetter:true, estimatedPct:savantData?.bb9_pct ?? estimatePct('bb9',bb9,true)},
     {label:'Innings Pitched', savantKey:null,            val:s.inningsPitched??'--', sub:'Season total', bar:Math.min(parseFloat(s.inningsPitched??0)/200,1), estimatedPct:null},
     {label:'Strikeouts',      savantKey:null,            val:so||'--',      sub:'Season total', bar:Math.min(so/300,1), estimatedPct:null},
     {label:'H/9',             savantKey:null,            val:s.hitsPer9Inn??'--', sub:'Hits/9', bar:parseFloat(s.hitsPer9Inn??0)/12, lowerIsBetter:true, estimatedPct:estimatePct('h9',parseFloat(s.hitsPer9Inn??0),true)},
