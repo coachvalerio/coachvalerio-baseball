@@ -177,7 +177,7 @@ export default async function handler(req, res) {
           const st = mlbStat?.stats?.[0]?.splits?.[0]?.stat ?? null;
           if (st) {
             k9Val  = st.strikeoutsPer9Inn  ?? null;
-            bb9Val = st.baseOnBallsPer9Inn ?? null;
+            bb9Val = st.walksPer9Inn ?? st.baseOnBallsPer9Inn ?? null;
             whipVal = st.whip ?? null;
           }
         } catch {}
@@ -193,12 +193,46 @@ export default async function handler(req, res) {
             const arows = parseCSV(atxt);
             const arow  = arows.find(r => String(r.pitcher) === String(id));
             if (arow) {
-              // ff_avg_speed is 4-seam fastball avg velo
               const v = parseFloat(arow.ff_avg_speed ?? arow.si_avg_speed ?? arow.fc_avg_speed ?? '');
               if (!isNaN(v)) avgFastballFetched = v;
             }
           }
         } catch {}
+        // Fallback: pitch-arsenal-stats (player-filtered, no minimum threshold)
+        // Catches pitchers below the pitch-arsenals leaderboard qualifier
+        if (avgFastballFetched === null) {
+          try {
+            const astxt = await fetch(
+              `https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?type=pitcher&pitchType=&year=${yr}&team=&min=0&player_id=${id}&csv=true`,
+              { headers: H }
+            ).then(r => r.ok ? r.text() : '');
+            if (astxt && !astxt.trimStart().startsWith('<') && astxt.includes(',')) {
+              const asrows = parseCSV(astxt);
+              // Find fastball row — team_name_alt col = pitch code (confirmed from debug)
+              // Pick FF first, then SI, then FC as best velo proxies
+              for (const code of ['FF','SI','FC','FA']) {
+                const row = asrows.find(r => (r['team_name_alt']??'').trim().toUpperCase() === code);
+                if (row) {
+                  // avg_speed from pitch-movement fallback already in moveRow above,
+                  // but pitch-arsenal-stats doesn't have speed directly.
+                  // Use pitch-movement for this specific pitch type instead.
+                  const mvtxt = await fetch(
+                    `https://baseballsavant.mlb.com/leaderboard/pitch-movement?season=${yr}&team=&min=0&type=pitcher&pitch_type=${code}&hand=&csv=true`,
+                    { headers: H }
+                  ).then(r => r.ok ? r.text() : '').catch(() => '');
+                  if (mvtxt && !mvtxt.trimStart().startsWith('<')) {
+                    const mvrows = parseCSV(mvtxt);
+                    const mvrow  = mvrows.find(r => String(r.player_id ?? r.pitcher_id ?? r.pitcher ?? '') === String(id));
+                    if (mvrow) {
+                      const v = parseFloat(mvrow.avg_speed ?? mvrow.release_speed ?? '');
+                      if (!isNaN(v)) { avgFastballFetched = v; break; }
+                    }
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
 
         // ── Whiff% raw — fetch from pitch-movement leaderboard (has avg_whiff_rate per pitcher)
         // Fallback: pitch-arsenal-stats weighted average across pitch types
