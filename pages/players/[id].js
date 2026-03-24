@@ -8,7 +8,7 @@ import Head from 'next/head';
 function getCurrentSeason() {
   const now = new Date();
   const year = now.getFullYear();
-  return now >= new Date(year, 3, 1) ? year : year - 1;  // April 1 — avoids blank stats in spring training
+  return now >= new Date(year, 2, 20) ? year : year - 1;
 }
 
 const TEAM_COLORS = {
@@ -358,15 +358,15 @@ export default function PlayerPage() {
 // SAVANT COLOR SCHEME — true to Baseball Savant
 // Red = elite/great, Blue = poor, Gray = average
 // ════════════════════════════════════════════════════════
-function savantColor(pct) {
-  // pct is already Savant-normalized: 100 = elite (red), 0 = poor (blue). Never invert here.
-  if (pct >= 95) return '#c8102e'; // deep red   — elite
-  if (pct >= 80) return '#e8354a'; // red
-  if (pct >= 67) return '#f47c7c'; // light red/pink
-  if (pct >= 34) return '#9e9e9e'; // gray        — average
-  if (pct >= 20) return '#6baed6'; // light blue
-  if (pct >= 5)  return '#2171b5'; // blue
-  return '#084594';                // deep blue   — poor
+function savantColor(pct, lowerIsBetter = false) {
+  const p = lowerIsBetter ? 100 - pct : pct;
+  if (p >= 95) return '#c8102e'; // deep red — elite
+  if (p >= 80) return '#e8354a'; // red
+  if (p >= 67) return '#f47c7c'; // light red/pink
+  if (p >= 34) return '#9e9e9e'; // gray — average
+  if (p >= 20) return '#6baed6'; // light blue
+  if (p >= 5)  return '#2171b5'; // blue
+  return '#084594';              // deep blue — poor
 }
 
 // ════════════════════════════════════════════════════════
@@ -529,7 +529,7 @@ function SavantStyleView({ tiles, data, isPitcher, year }) {
             {groupTiles.map((t, i) => {
               const pct = data?.[t.savantKey] ?? t.estimatedPct;
               const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-              const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
+              const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
               const barPct = pctNum ?? 50;
               return (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'.55rem 1.25rem', borderBottom:'1px solid #080c12' }}>
@@ -575,7 +575,7 @@ function SavantTileView({ tiles, data, colors }) {
       {tiles.map((t,i) => {
         const pct = data?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
         const barWidth = pctNum ?? Math.round((t.bar||0)*100);
         return (
           <div key={i} style={{ ...s.svTile, transition:'border-color .2s,transform .15s', borderColor: pctNum !== null ? col+'33' : '#1e2028' }}>
@@ -943,7 +943,7 @@ function SavantGrid({ stat, isPitcher, colors, savantData }) {
       {tiles.map((t,i)=>{
         const pct = savantData?.[t.savantKey] ?? t.estimatedPct;
         const pctNum = typeof pct === 'number' ? Math.round(pct) : null;
-        const col = pctNum !== null ? savantColor(pctNum) : '#9e9e9e';
+        const col = pctNum !== null ? savantColor(pctNum, t.lowerIsBetter) : '#9e9e9e';
         const barWidth = pctNum !== null ? pctNum : Math.round((t.bar||0)*100);
         return (
           <div key={i} className="sv-tile" style={{...s.svTile,borderColor:pctNum?col+'33':'#1e2028'}}>
@@ -1243,75 +1243,202 @@ function BestBetPanel({ odds, colors, isPitcher }) {
 // PREDICTION — rescaled against league context
 // ════════════════════════════════════════════════════════
 function PredPanel({ stat, isPitcher, colors, id }) {
-  const [matchup, setMatchup] = useState(null);
+  const [matchup,        setMatchup]        = useState(null);
   const [matchupLoading, setMatchupLoading] = useState(true);
+  const [recentGames,    setRecentGames]    = useState(null);   // last 10 game log
+  const [splits,         setSplitsData]     = useState(null);   // home/away splits
+  const SEASON = getCurrentSeason();
 
   useEffect(() => {
     if (!id) return;
+    // Matchup + pitcher data
     fetch(`/api/predictions?playerId=${id}`)
-      .then(r => r.json())
-      .then(d => { setMatchup(d); setMatchupLoading(false); })
+      .then(r => r.json()).then(d => { setMatchup(d); setMatchupLoading(false); })
       .catch(() => setMatchupLoading(false));
+
+    // Recent form — last 10 games
+    const grp = isPitcher ? 'pitching' : 'hitting';
+    fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=${grp}&season=${SEASON}&gameType=R`)
+      .then(r => r.json())
+      .then(d => {
+        const sp = d?.stats?.[0]?.splits ?? [];
+        setRecentGames(sp.slice(-10));
+      }).catch(() => {});
+
+    // Home/away splits
+    fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=statSplits&group=${grp}&season=${SEASON}&sitCodes=h,a&gameType=R`)
+      .then(r => r.json())
+      .then(d => setSplitsData(d?.stats?.[0]?.splits ?? []))
+      .catch(() => {});
   }, [id]);
 
-  // ── Base score from player's own season stats ──
-  let baseScore, title, bars, note;
+  // ── Shared helpers ─────────────────────────────────────────────────────────
+  const pct = (v, lo, hi) => Math.min(100, Math.max(0, ((v - lo) / (hi - lo)) * 100));
 
+  // ── Is game home or away? ──────────────────────────────────────────────────
+  const isHome    = matchup?.gameInfo?.isHome ?? true;
+  const parkFactor = matchup?.gameInfo?.parkFactor ?? 1.0;
+  const pitcher   = matchup?.pitcher ?? null;
+  const mx        = matchup?.matchup ?? null;
+
+  // ── Home/Away split delta ──────────────────────────────────────────────────
+  // Compare home OPS vs away OPS — adjust score accordingly
+  let splitBoost = 0;
+  if (splits && splits.length >= 2) {
+    const homeRow = splits.find(s => s.split?.code === 'h');
+    const awayRow = splits.find(s => s.split?.code === 'a');
+    if (homeRow && awayRow) {
+      const homeOps = parseFloat(isPitcher
+        ? (homeRow.stat?.era ?? 4)
+        : (homeRow.stat?.ops ?? .720));
+      const awayOps = parseFloat(isPitcher
+        ? (awayRow.stat?.era ?? 4)
+        : (awayRow.stat?.ops ?? .720));
+      if (isPitcher) {
+        // Lower ERA at location = boost
+        const locEra = isHome ? homeOps : awayOps;
+        const othEra = isHome ? awayOps : homeOps;
+        splitBoost = locEra < othEra ? 4 : locEra > othEra ? -4 : 0;
+      } else {
+        const locOps = isHome ? homeOps : awayOps;
+        const othOps = isHome ? awayOps : homeOps;
+        splitBoost = locOps > othOps + .030 ? 5 : locOps < othOps - .030 ? -5 : 0;
+      }
+    }
+  }
+
+  // ── Recent form (last 10 games) ─────────────────────────────────────────────
+  let recentBoost = 0;
+  let recentLabel = '';
+  if (recentGames && recentGames.length >= 3) {
+    if (!isPitcher) {
+      const H   = recentGames.reduce((s,g) => s+(parseInt(g.stat?.hits)||0), 0);
+      const AB  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.atBats)||0), 0);
+      const BB  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.baseOnBalls)||0), 0);
+      const TB  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.totalBases)||0), 0);
+      const HBP = recentGames.reduce((s,g) => s+(parseInt(g.stat?.hitByPitch)||0), 0);
+      const SF  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.sacFlies)||0), 0);
+      const recentAvg = AB > 0 ? H/AB : .250;
+      const recentSlg = AB > 0 ? TB/AB : .380;
+      const recentObp = (AB+BB+HBP+SF) > 0 ? (H+BB+HBP)/(AB+BB+HBP+SF) : .320;
+      const recentOps = recentObp + recentSlg;
+      recentBoost = recentOps >= .900 ? 8 : recentOps >= .800 ? 5 : recentOps >= .700 ? 1 : recentOps >= .600 ? -3 : -7;
+      recentLabel = `L10: .${Math.round(recentAvg*1000).toString().padStart(3,'0')} AVG · ${recentOps.toFixed(3)} OPS`;
+    } else {
+      const outs = recentGames.reduce((s,g) => {
+        const ip = parseFloat(g.stat?.inningsPitched||0);
+        return s + Math.floor(ip)*3 + Math.round((ip-Math.floor(ip))*10);
+      }, 0);
+      const er  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.earnedRuns)||0), 0);
+      const h   = recentGames.reduce((s,g) => s+(parseInt(g.stat?.hits)||0), 0);
+      const bb  = recentGames.reduce((s,g) => s+(parseInt(g.stat?.baseOnBalls)||0), 0);
+      const recentEra  = outs > 0 ? (er/outs)*27 : 4.50;
+      const recentWhip = outs > 0 ? (h+bb)/outs*3 : 1.30;
+      recentBoost = recentEra <= 2.50 ? 8 : recentEra <= 3.25 ? 5 : recentEra <= 4.00 ? 1 : recentEra <= 5.00 ? -3 : -7;
+      recentLabel = `L${recentGames.length}: ${recentEra.toFixed(2)} ERA · ${recentWhip.toFixed(2)} WHIP`;
+    }
+  }
+
+  // ── Pitcher matchup factors ────────────────────────────────────────────────
+  // ERA/WHIP/K9 of opposing pitcher → how hard is today's matchup?
+  let pitcherBoost = 0;
+  let pitcherLabel = '';
+  if (pitcher && !isPitcher) {
+    const pEra  = parseFloat(pitcher.era  ?? 4.50);
+    const pWhip = parseFloat(pitcher.whip ?? 1.30);
+    const pK9   = parseFloat(pitcher.k9   ?? 8.5);
+    // Low ERA + high K9 = tougher matchup for batter
+    const difficulty = (pEra <= 2.50 && pK9 >= 10) ? -10 :
+                       (pEra <= 3.25 && pK9 >= 9)  ? -7  :
+                       (pEra <= 3.75)               ? -4  :
+                       (pEra <= 4.25)               ?  0  :
+                       (pEra <= 5.00)               ?  4  : 7;
+    pitcherBoost = difficulty;
+    pitcherLabel = `vs ${pitcher.name ?? 'TBD'} (${pEra.toFixed(2)} ERA · ${pK9.toFixed(1)} K/9)`;
+  } else if (pitcher && isPitcher) {
+    // Opposing lineup quality — use park factor as rough proxy when no lineup data
+    pitcherBoost = 0;
+  }
+
+  // ── Park factor boost ──────────────────────────────────────────────────────
+  const parkBoost = !isPitcher
+    ? parkFactor >= 1.08 ? 4 : parkFactor >= 1.03 ? 2 : parkFactor <= 0.92 ? -4 : parkFactor <= 0.97 ? -2 : 0
+    : parkFactor >= 1.08 ? -4 : parkFactor >= 1.03 ? -2 : parkFactor <= 0.92 ? 4 : parkFactor <= 0.97 ? 2 : 0;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── BATTER PREDICTION ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   if (!isPitcher) {
-    const avg  = parseFloat(stat.avg  ?? .230);
-    const ops  = parseFloat(stat.ops  ?? .680);
-    const hr   = parseInt(stat.homeRuns ?? 0);
-    const rbi  = parseInt(stat.rbi     ?? 0);
-    const sb   = parseInt(stat.stolenBases ?? 0);
-    const obp  = parseFloat(stat.obp  ?? .310);
+    const avg = parseFloat(stat.avg  ?? .240);
+    const ops = parseFloat(stat.ops  ?? .700);
+    const hr  = parseInt(stat.homeRuns    ?? 0);
+    const rbi = parseInt(stat.rbi         ?? 0);
+    const sb  = parseInt(stat.stolenBases ?? 0);
+    const obp = parseFloat(stat.obp ?? .310);
+    const slg = parseFloat(stat.slg ?? .390);
+    const gp  = parseInt(stat.gamesPlayed ?? 100);
 
-    const avgScore  = Math.min(100, (avg  / .340) * 100);
-    const opsScore  = Math.min(100, (ops  / 1.100) * 100);
-    const hrScore   = Math.min(100, (hr   / 55)   * 100);
-    const rbiScore  = Math.min(100, (rbi  / 115)  * 100);
-    const sbScore   = Math.min(100, (sb   / 50)   * 100);
-    const obpScore  = Math.min(100, (obp  / .420)  * 100);
+    // Calibrated benchmarks: replacement = ~0, avg MLB starter = ~50, All-Star = ~80, MVP = ~95
+    // AVG: .215=0, .260=43, .290=71, .310=90, .320=100
+    const avgScore = pct(avg, .215, .320);
+    // OPS: .630=0, .720=39, .790=65, .840=83, .860=100
+    const opsScore = pct(ops, .630, .860);
+    // OBP: .285=0, .330=43, .365=76, .385=95, .390=100
+    const obpScore = pct(obp, .285, .390);
+    // HR pace per 162: 5=0, 15=30, 25=61, 35=91, 38=100
+    const hrPace   = gp > 0 ? (hr/gp)*162 : hr;
+    const hrScore  = pct(hrPace, 5, 38);
+    // SB bonus (small weight)
+    const sbScore  = pct(sb, 0, 50);
 
-    baseScore = Math.round(
-      avgScore  * 0.22 +
-      opsScore  * 0.28 +
-      hrScore   * 0.18 +
-      rbiScore  * 0.15 +
-      obpScore  * 0.10 +
-      sbScore   * 0.07
+    // Weighted base — OPS is king, AVG second, OBP third
+    const baseScore = Math.round(
+      opsScore * 0.35 +
+      avgScore * 0.25 +
+      obpScore * 0.18 +
+      hrScore  * 0.14 +
+      sbScore  * 0.08
     );
 
-    const hitAdj  = matchup?.matchup?.hitAdj  ?? 0;
-    const parkAdj = matchup?.matchup?.parkAdj ?? 0;
-    const score   = Math.max(5, Math.min(99, Math.round(baseScore * (1 + hitAdj + parkAdj * 0.4))));
+    // ── Apply all daily factors ───────────────────────────────────────────
+    const totalBoost = recentBoost + splitBoost + pitcherBoost + parkBoost;
+    const score = Math.max(8, Math.min(99, baseScore + totalBoost));
 
-    title = score >= 90 ? 'MVP-CALIBER PERFORMANCE' :
-            score >= 75 ? 'ELITE PERFORMANCE EXPECTED' :
-            score >= 60 ? 'ABOVE AVERAGE PROJECTION' :
-            score >= 45 ? 'AVERAGE PROJECTION' :
-            score >= 30 ? 'BELOW AVERAGE PROJECTION' : 'TOUGH MATCHUP AHEAD';
+    const grade = score>=93?'A+':score>=85?'A':score>=75?'B+':score>=65?'B':score>=55?'C+':score>=45?'C':'D';
 
-    const hitProb = Math.round(Math.max(12, Math.min(52, 24 + (score/100)*18)));
-    const xbhProb = Math.round(Math.max(4,  Math.min(35, 6  + (score/100)*12)));
-    const hrProb  = Math.round(Math.max(1,  Math.min(25, 2  + (hrScore/100)*10 + parkAdj*8)));
-    const multiH  = Math.round(Math.max(5,  Math.min(45, 8  + (score/100)*18)));
+    const title =
+      score >= 93 ? 'MVP-CALIBER PERFORMANCE' :
+      score >= 85 ? 'ELITE PERFORMANCE EXPECTED' :
+      score >= 75 ? 'STRONG GAME PROJECTED' :
+      score >= 62 ? 'ABOVE AVERAGE PROJECTION' :
+      score >= 48 ? 'AVERAGE PROJECTION' :
+      score >= 35 ? 'BELOW AVERAGE PROJECTION' : 'TOUGH MATCHUP AHEAD';
 
-    bars = [
-      { l:'Hit Probability',   p: hitProb, desc:'Adjusted for opponent + park' },
-      { l:'Extra Base Hit',    p: xbhProb, accent: true, desc:'2B, 3B, or HR' },
-      { l:'Home Run',          p: hrProb,  accent: true, desc:`Park factor: ${matchup?.matchup?.parkFactor?.toFixed(2) ?? '—'}` },
-      { l:'2+ Hit Game',       p: multiH,  desc:'Multi-hit performance' },
-    ];
-    note = `AVG ${stat.avg??'—'} · OPS ${stat.ops??'—'} · ${hr} HR · ${rbi} RBI this season. ${ops>=1.000?'Historic MVP-level season.':ops>=.900?'Elite run producer.':ops>=.800?'Above average hitter.':ops>=.700?'League average bat.':'Struggling offensively.'}`;
+    // ── Probability bars ──────────────────────────────────────────────────
+    // Calibrated to real MLB rates:
+    // Hit probability: MLB avg ~.265 BA → ~26-28% hit/PA
+    // We translate score → realistic hit probability (not PA, but "gets a hit today")
+    const hitProb  = Math.round(Math.max(15, Math.min(58, 22 + (score - 50) * 0.52)));
+    const xbhProb  = Math.round(Math.max(6,  Math.min(40, 8  + (score - 50) * 0.38)));
+    const hrProb   = Math.round(Math.max(2,  Math.min(22, 3  + (hrScore/100)*14 + parkBoost*0.5)));
+    const multiHit = Math.round(Math.max(8,  Math.min(52, 10 + (score - 50) * 0.55)));
+    const sbProb   = Math.round(Math.max(2,  Math.min(35, sb > 0 ? 5 + (sbScore/100)*20 : 3)));
 
-    const grade = score>=90?'A+':score>=80?'A':score>=70?'B+':score>=60?'B':score>=50?'C+':score>=40?'C':'D';
+    const note = `AVG ${stat.avg??'—'} · OPS ${stat.ops??'—'} · ${hr} HR · ${rbi} RBI this season.`;
+
+    // Factor breakdown badges
+    const factors = [
+      recentLabel && { label: recentLabel, boost: recentBoost },
+      splitBoost !== 0 && { label: isHome ? 'Home advantage' : 'Road game', boost: splitBoost },
+      pitcherBoost !== 0 && { label: pitcherLabel || 'Pitcher matchup', boost: pitcherBoost },
+      parkBoost !== 0 && { label: `Park factor ${parkFactor?.toFixed(2)}`, boost: parkBoost },
+    ].filter(Boolean);
 
     return (
       <>
-        {/* Matchup card — shows opponent pitcher */}
         <MatchupCard matchup={matchup} loading={matchupLoading} colors={colors} />
-
         <div style={s.predCard}>
+          {/* Score header */}
           <div style={{display:'flex',alignItems:'center',gap:'2rem',flexWrap:'wrap',marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid #1e2028'}}>
             <div style={{textAlign:'center',flexShrink:0}}>
               <div style={{position:'relative',width:'100px',height:'100px',margin:'0 auto'}}>
@@ -1331,32 +1458,30 @@ function PredPanel({ stat, isPitcher, colors, id }) {
             </div>
             <div style={{flex:1,minWidth:'180px'}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
-              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
-              {matchup?.matchup && (
-                <div style={{marginTop:'.5rem',display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
-                  {hitAdj !== 0 && (
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',
-                      padding:'.2rem .5rem',borderRadius:'4px',
-                      background: hitAdj < 0 ? 'rgba(230,53,53,.15)' : 'rgba(46,212,122,.15)',
-                      color: hitAdj < 0 ? '#e63535' : '#2ed47a'}}>
-                      {hitAdj < 0 ? '↓' : '↑'} Pitcher adj: {hitAdj > 0 ? '+' : ''}{Math.round(hitAdj*100)}%
-                    </span>
-                  )}
-                  {parkAdj !== 0 && (
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.7rem',fontWeight:700,letterSpacing:'.08em',
-                      padding:'.2rem .5rem',borderRadius:'4px',
-                      background: parkAdj > 0 ? 'rgba(46,212,122,.15)' : 'rgba(230,53,53,.15)',
-                      color: parkAdj > 0 ? '#2ed47a' : '#e63535'}}>
-                      {parkAdj > 0 ? '↑' : '↓'} Park adj: {parkAdj > 0 ? '+' : ''}{(parkAdj*100).toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-              )}
+              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0',marginBottom:'.6rem'}}>{note}</div>
+              {/* Factor badges */}
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.35rem'}}>
+                {factors.map((f,i) => (
+                  <span key={i} style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.06em',
+                    padding:'.18rem .48rem',borderRadius:'4px',
+                    background: f.boost > 0 ? 'rgba(46,212,122,.12)' : f.boost < 0 ? 'rgba(230,53,53,.12)' : 'rgba(184,189,208,.08)',
+                    color: f.boost > 0 ? '#2ed47a' : f.boost < 0 ? '#e63535' : '#5c6070'}}>
+                    {f.boost > 0 ? '▲' : f.boost < 0 ? '▼' : '●'} {f.label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
+          {/* Probability bars */}
           <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
-            {bars.map((b,i)=>(
+            {[
+              { l:'Hit Probability',   p: hitProb,  desc:'Gets at least one hit today' },
+              { l:'Extra Base Hit',    p: xbhProb,  accent:true, desc:'2B, 3B, or HR' },
+              { l:'Home Run',          p: hrProb,   accent:true, desc:`Park factor: ${parkFactor?.toFixed(2) ?? '—'}` },
+              { l:'2+ Hit Game',       p: multiHit, desc:'Multi-hit performance' },
+              ...(sb > 5 ? [{ l:'Stolen Base', p: sbProb, desc:'Attempts + success rate' }] : []),
+            ].map((b,i) => (
               <div key={i}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.3rem'}}>
                   <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070'}}>{b.l}</span>
@@ -1370,28 +1495,31 @@ function PredPanel({ stat, isPitcher, colors, id }) {
             ))}
           </div>
         </div>
-
         <div style={s.infoBox}>
-          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Base score uses season stats vs league-best benchmarks. Opponent pitcher quality and park factor are then applied as live adjustments.
+          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Season stats (OPS/AVG/OBP/HR pace) form the base. Daily adjustments applied for recent form (L10 games), home/road splits, opponent pitcher ERA + K/9, and park factor.
         </div>
       </>
     );
 
   } else {
-    // ── Pitcher view ──
-    const era  = parseFloat(stat.era  ?? 5.00);
-    const whip = parseFloat(stat.whip ?? 1.45);
-    const k9   = parseFloat(stat.strikeoutsPer9Inn ?? 7.5);
+    // ══════════════════════════════════════════════════════════════════════
+    // ── PITCHER PREDICTION ──────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    const era  = parseFloat(stat.era  ?? 4.50);
+    const whip = parseFloat(stat.whip ?? 1.35);
+    const k9   = parseFloat(stat.strikeoutsPer9Inn ?? 8.0);
+    const bb9  = parseFloat(stat.baseOnBallsPer9Inn ?? 3.2);
     const wins = parseInt(stat.wins ?? 0);
     const ip   = parseFloat(stat.inningsPitched ?? 0);
 
-    const eraScore  = Math.min(100, Math.max(0, ((6.00 - era)  / 4.50) * 100));
-    const whipScore = Math.min(100, Math.max(0, ((2.00 - whip) / 1.20) * 100));
-    const k9Score   = Math.min(100, (k9 / 14.0) * 100);
-    const bb9Score  = Math.min(100, Math.max(0, ((6.0 - parseFloat(stat.baseOnBallsPer9Inn ?? 3.5)) / 4.5) * 100));
-    const ipScore   = Math.min(100, (ip / 200) * 100);
+    // Calibrated benchmarks for pitchers
+    const eraScore  = pct(6.00 - era,  0, 4.00);   // 6.00 ERA=0, 2.00 ERA=100
+    const whipScore = pct(2.00 - whip, 0, 1.10);   // 2.00=0, 0.90=100
+    const k9Score   = pct(k9,  4.0, 14.0);
+    const bb9Score  = pct(6.0 - bb9, 0, 4.5);
+    const ipScore   = pct(ip, 0, 200);
 
-    const score = Math.round(
+    const baseScore = Math.round(
       eraScore  * 0.30 +
       whipScore * 0.25 +
       k9Score   * 0.22 +
@@ -1399,31 +1527,35 @@ function PredPanel({ stat, isPitcher, colors, id }) {
       ipScore   * 0.08
     );
 
-    title = score >= 90 ? 'CY YOUNG-CALIBER START PROJECTED' :
-            score >= 75 ? 'DOMINANT OUTING PROJECTED' :
-            score >= 60 ? 'QUALITY START LIKELY' :
-            score >= 45 ? 'AVERAGE OUTING EXPECTED' :
-            score >= 30 ? 'ROUGH OUTING POSSIBLE' : 'TOUGH NIGHT — HIGH ERA RISK';
+    const totalBoost = recentBoost + splitBoost + parkBoost;
+    const score = Math.max(8, Math.min(99, baseScore + totalBoost));
+    const grade = score>=93?'A+':score>=85?'A':score>=75?'B+':score>=65?'B':score>=55?'C+':score>=45?'C':'D';
 
-    const qsProb   = Math.round(20 + (score/100)*60);
-    const winProb  = Math.round(15 + (score/100)*45);
-    const kProp    = Math.round(k9 * 0.55);
-    const lowWhip  = Math.round(15 + (whipScore/100)*65);
+    const title =
+      score >= 93 ? 'CY YOUNG-CALIBER START PROJECTED' :
+      score >= 85 ? 'DOMINANT OUTING PROJECTED' :
+      score >= 75 ? 'QUALITY START LIKELY' :
+      score >= 62 ? 'SOLID OUTING EXPECTED' :
+      score >= 48 ? 'AVERAGE OUTING EXPECTED' :
+      score >= 35 ? 'ROUGH OUTING POSSIBLE' : 'TOUGH NIGHT — HIGH ERA RISK';
 
-    bars = [
-      { l:'Quality Start',        p: qsProb,  desc:'6+ IP, ≤3 ER' },
-      { l:'Win Probability',      p: winProb, accent: true, desc:'Based on ERA/WHIP' },
-      { l:`${kProp}+ Strikeouts`, p: Math.round(40 + (k9Score/100)*45), accent: true, desc:'Based on K/9 pace' },
-      { l:'Low WHIP Game',        p: lowWhip, desc:'WHIP < 1.10' },
-    ];
-    note = `ERA ${stat.era??'—'} · WHIP ${stat.whip??'—'} · K/9 ${stat.strikeoutsPer9Inn??'—'} · ${wins}W this season. ${era<=2.5?'Historically dominant.':era<=3.25?'Ace-caliber season.':era<=4.00?'Solid starter.':era<=5.00?'Inconsistent season.':'Struggling significantly.'}`;
+    const kProp   = Math.round(k9 * 0.60);
+    const qsProb  = Math.round(Math.max(10, Math.min(85, 12 + (score - 40) * 1.1)));
+    const winProb = Math.round(Math.max(8,  Math.min(75, 8  + (score - 40) * 0.9)));
+    const kProb   = Math.round(Math.max(20, Math.min(85, 25 + (k9Score/100)*55)));
+    const lowWhip = Math.round(Math.max(10, Math.min(82, 12 + (whipScore/100)*65)));
 
-    const grade = score>=90?'A+':score>=80?'A':score>=70?'B+':score>=60?'B':score>=50?'C+':score>=40?'C':'D';
+    const factors = [
+      recentLabel && { label: recentLabel, boost: recentBoost },
+      splitBoost !== 0 && { label: isHome ? 'Home advantage' : 'Road start', boost: splitBoost },
+      parkBoost !== 0 && { label: `Park factor ${parkFactor?.toFixed(2)}`, boost: parkBoost },
+    ].filter(Boolean);
+
+    const note = `ERA ${stat.era??'—'} · WHIP ${stat.whip??'—'} · K/9 ${stat.strikeoutsPer9Inn??'—'} · ${wins}W this season.`;
 
     return (
       <>
         <MatchupCard matchup={matchup} loading={matchupLoading} colors={colors} isPitcher />
-
         <div style={s.predCard}>
           <div style={{display:'flex',alignItems:'center',gap:'2rem',flexWrap:'wrap',marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid #1e2028'}}>
             <div style={{textAlign:'center',flexShrink:0}}>
@@ -1444,11 +1576,26 @@ function PredPanel({ stat, isPitcher, colors, id }) {
             </div>
             <div style={{flex:1,minWidth:'180px'}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:'1.6rem',color:'#f0f2f8',marginBottom:'.35rem'}}>{title}</div>
-              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0'}}>{note}</div>
+              <div style={{fontSize:'.85rem',lineHeight:1.7,color:'#b8bdd0',marginBottom:'.6rem'}}>{note}</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:'.35rem'}}>
+                {factors.map((f,i) => (
+                  <span key={i} style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.68rem',fontWeight:700,letterSpacing:'.06em',
+                    padding:'.18rem .48rem',borderRadius:'4px',
+                    background: f.boost > 0 ? 'rgba(46,212,122,.12)' : f.boost < 0 ? 'rgba(230,53,53,.12)' : 'rgba(184,189,208,.08)',
+                    color: f.boost > 0 ? '#2ed47a' : f.boost < 0 ? '#e63535' : '#5c6070'}}>
+                    {f.boost > 0 ? '▲' : f.boost < 0 ? '▼' : '●'} {f.label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
-            {bars.map((b,i)=>(
+            {[
+              { l:'Quality Start',          p: qsProb,  desc:'6+ IP, ≤3 ER' },
+              { l:'Win Probability',        p: winProb, accent:true, desc:'Based on ERA/WHIP + matchup' },
+              { l:`${kProp}+ Strikeouts`,   p: kProb,   accent:true, desc:'Based on K/9 pace' },
+              { l:'Low WHIP Game',          p: lowWhip, desc:'WHIP < 1.10 today' },
+            ].map((b,i) => (
               <div key={i}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.3rem'}}>
                   <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:'.72rem',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'#5c6070'}}>{b.l}</span>
@@ -1463,7 +1610,7 @@ function PredPanel({ stat, isPitcher, colors, id }) {
           </div>
         </div>
         <div style={s.infoBox}>
-          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> Base score uses season stats vs league-best benchmarks. Opponent pitcher quality and park factor are then applied as live adjustments.
+          ℹ️ <strong style={{color:'#f0f2f8'}}>Scoring methodology:</strong> ERA/WHIP/K9/BB9 form the base. Adjusted for recent form (L10 starts), home/road ERA splits, and park factor.
         </div>
       </>
     );
