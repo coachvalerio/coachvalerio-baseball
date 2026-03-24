@@ -61,7 +61,7 @@ export default async function handler(req, res) {
           if (atxt) {
             const ap = find(atxt);
             if (ap) {
-              armVal = ap.arm_strength ?? ap.avg_arm_strength ?? ap.max_eff_vel ?? ap.pop_2b_sba ?? ap.arm_value ?? null;
+              armVal = ap.arm_overall ?? ap.arm_strength ?? ap.avg_arm_strength ?? ap.max_eff_vel ?? ap.arm_value ?? null;
               const rawPct = numOrNull(ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank ?? ap.arm_strength_percentile);
               if (rawPct !== null) { armPct = rawPct; }
               else if (armVal !== null) {
