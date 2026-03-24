@@ -44,12 +44,66 @@ export default async function handler(req, res) {
 
         if (!xstatRow && !statcastRow && !pctRow) continue;
 
+        // Arm Strength
+        let armVal = null, armPct = null;
+        try {
+          const armUrls = [
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?pos=&year=${yr}&team=&min=0&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?type=Fielder&pos=&year=${yr}&team=&min=0&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm-strength?year=${yr}&csv=true`,
+            `https://baseballsavant.mlb.com/leaderboard/arm_strength?pos=&year=${yr}&team=&min=0&csv=true`,
+          ];
+          let atxt = '';
+          for (const url of armUrls) {
+            const t = await fetch(url, { headers: H }).then(r => r.ok ? r.text() : '').catch(() => '');
+            if (t && !t.trimStart().startsWith('<') && t.includes(',')) { atxt = t; break; }
+          }
+          if (atxt) {
+            const ap = find(atxt);
+            if (ap) {
+              armVal = ap.arm_strength ?? ap.avg_arm_strength ?? ap.max_eff_vel ?? ap.pop_2b_sba ?? ap.arm_value ?? null;
+              const rawPct = numOrNull(ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank ?? ap.arm_strength_percentile);
+              if (rawPct !== null) { armPct = rawPct; }
+              else if (armVal !== null) {
+                const av = parseFloat(armVal);
+                armPct = isNaN(av) ? null
+                  : av >= 90 ? 99 : av >= 87 ? 95 : av >= 84 ? 88
+                  : av >= 81 ? 78 : av >= 78 ? 65 : av >= 75 ? 50
+                  : av >= 72 ? 36 : av >= 69 ? 23 : av >= 66 ? 12 : 5;
+              }
+            }
+          }
+        } catch {}
+
         // ── DEBUG: dump actual column names so we can fix lookup keys ──────────
         if (debug === '1') {
           const hdr = (txt) => {
             if (!txt || txt.trimStart().startsWith('<')) return [];
             return txt.trim().split('\n')[0].split(',').map(h => h.replace(/"/g,'').trim());
           };
+          // fetch arm strength CSV to expose columns
+          let armDebugCols = [], armDebugRow = null, armDebugFirst = null;
+          try {
+            const armUrls2 = [
+              `https://baseballsavant.mlb.com/leaderboard/arm-strength?pos=&year=${yr}&team=&min=0&csv=true`,
+              `https://baseballsavant.mlb.com/leaderboard/arm-strength?year=${yr}&csv=true`,
+            ];
+            for (const url of armUrls2) {
+              const t = await fetch(url, { headers: H }).then(r => r.ok ? r.text() : '').catch(() => '');
+              if (t && !t.trimStart().startsWith('<') && t.includes(',')) {
+                armDebugCols = hdr(t);
+                const rows = parseCSV(t);
+                armDebugFirst = rows[0] ?? null;
+                armDebugRow = rows.find(r =>
+                  String(r.player_id) === String(id) ||
+                  String(r.mlbam_id)  === String(id) ||
+                  String(r.batter)    === String(id) ||
+                  String(r.pitcher)   === String(id)
+                ) ?? null;
+                break;
+              }
+            }
+          } catch {}
           return res.status(200).json({
             type, yr,
             statcast_cols:  hdr(statcastTxt),
@@ -58,6 +112,9 @@ export default async function handler(req, res) {
             statcast_row:   statcastRow,
             xstat_row:      xstatRow,
             pct_row:        pctRow,
+            arm_cols:       armDebugCols,
+            arm_player_row: armDebugRow,
+            arm_first_row:  armDebugFirst,
           });
         }
 
@@ -108,36 +165,6 @@ export default async function handler(req, res) {
           }
         } catch {}
 
-        // Arm Strength
-        let armVal = null, armPct = null;
-        try {
-          const armUrls = [
-            `https://baseballsavant.mlb.com/leaderboard/arm-strength?pos=&year=${yr}&team=&min=0&csv=true`,
-            `https://baseballsavant.mlb.com/leaderboard/arm-strength?type=Fielder&pos=&year=${yr}&team=&min=0&csv=true`,
-            `https://baseballsavant.mlb.com/leaderboard/arm-strength?year=${yr}&csv=true`,
-            `https://baseballsavant.mlb.com/leaderboard/arm_strength?pos=&year=${yr}&team=&min=0&csv=true`,
-          ];
-          let atxt = '';
-          for (const url of armUrls) {
-            const t = await fetch(url, { headers: H }).then(r => r.ok ? r.text() : '').catch(() => '');
-            if (t && !t.trimStart().startsWith('<') && t.includes(',')) { atxt = t; break; }
-          }
-          if (atxt) {
-            const ap = find(atxt);
-            if (ap) {
-              armVal = ap.arm_strength ?? ap.avg_arm_strength ?? ap.max_eff_vel ?? ap.pop_2b_sba ?? ap.arm_value ?? null;
-              const rawPct = numOrNull(ap.arm_strength_pct ?? ap.percentile ?? ap.pct_rank ?? ap.arm_strength_percentile);
-              if (rawPct !== null) { armPct = rawPct; }
-              else if (armVal !== null) {
-                const av = parseFloat(armVal);
-                armPct = isNaN(av) ? null
-                  : av >= 90 ? 99 : av >= 87 ? 95 : av >= 84 ? 88
-                  : av >= 81 ? 78 : av >= 78 ? 65 : av >= 75 ? 50
-                  : av >= 72 ? 36 : av >= 69 ? 23 : av >= 66 ? 12 : 5;
-              }
-            }
-          }
-        } catch {}
 
         // ── Season pitching stats fallback (K/9, BB/9, WHIP) from MLB Stats API
         // Used when the main page stat object is empty (spring training / opening week)
