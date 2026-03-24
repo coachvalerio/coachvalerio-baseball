@@ -225,13 +225,13 @@ export default async function handler(req, res) {
         const pctF = (n) => n != null ? (n > 1 ? n : n * 100).toFixed(1) + '%' : null;
 
         // Sweet Spot
-        const ssRaw = raw('sweet_spot_percent','la_sweet_spot_percent','sweet_spot_pct','sweet_spot','ss_percent','sweetspot_percent');
+        const ssRaw = raw('anglesweetspotpercent','sweet_spot_percent','la_sweet_spot_percent','sweet_spot_pct','sweet_spot','ss_percent','sweetspot_percent');
         const sweetSpotEstPct = ssRaw != null
           ? ssRaw >= 40 ? 90 : ssRaw >= 37 ? 80 : ssRaw >= 34 ? 65 : ssRaw >= 31 ? 50 : ssRaw >= 28 ? 35 : 20
           : null;
 
         // Launch Angle
-        const laRaw = raw('launch_angle_avg','avg_launch_angle','la_avg','avg_la','launch_angle','la');
+        const laRaw = raw('avg_hit_angle','launch_angle_avg','avg_launch_angle','la_avg','avg_la','launch_angle','la');
         const laDisplay = laRaw != null ? laRaw.toFixed(1) + '\u00b0' : null;
         const laEstPct = laRaw != null
           ? (laRaw >= 10 && laRaw <= 18) ? 85 : (laRaw >= 7 && laRaw <= 22) ? 65 : (laRaw >= 4 && laRaw <= 26) ? 45 : 25
@@ -245,7 +245,7 @@ export default async function handler(req, res) {
             xwoba:         dec(raw('est_woba','xwoba'), 3),
             exit_velocity: dec(raw('avg_hit_speed','exit_velocity_avg','avg_exit_velocity','ev_avg'), 1),
             launch_angle:  laDisplay,
-            hard_hit:      pctF(raw('hard_hit_percent','hard_hit_rate','hard_hit')),
+            hard_hit:      pctF(raw('ev95percent','hard_hit_percent','hard_hit_rate','hard_hit')),
             barrel:        pctF(raw('brl_pa','barrel_batted_rate','barrel_rate','brl_percent')),
             sweet_spot:    pctF(ssRaw),
             sprint_speed:  sprintVal ? parseFloat(sprintVal).toFixed(1) : null,
@@ -267,7 +267,7 @@ export default async function handler(req, res) {
             bb_pct:            pct('walk_percent','bb_percent','walk_pct'),
             sprint_pct:        sprintPct,
             oaa_pct:           oaaPct,
-            arm_strength_pct:  armPct,
+            arm_strength_pct:  pct('arm_strength') ?? armPct,
           });
 
         } else {
