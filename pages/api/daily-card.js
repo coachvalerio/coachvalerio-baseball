@@ -116,42 +116,77 @@ async function getOutliers(season) {
 
 // ── #12 Milestone tracker ──────────────────────────────────────────────────
 async function getMilestones() {
+  const season = new Date().getFullYear();
   const results = [];
-  // Career stat leaders close to thresholds — use MLB career leaders
   const cats = [
-    { cat: 'homeRuns',   group: 'hitting',  targets: [300, 400, 500, 600], label: 'HR' },
-    { cat: 'hits',       group: 'hitting',  targets: [2000, 2500, 3000],   label: 'Hits' },
-    { cat: 'strikeouts', group: 'pitching', targets: [2000, 2500, 3000],   label: 'K' },
-    { cat: 'wins',       group: 'pitching', targets: [200, 250, 300],      label: 'Wins' },
+    { cat: 'homeRuns',   group: 'hitting',  targets: [300, 400, 500, 600, 700], label: 'HR' },
+    { cat: 'hits',       group: 'hitting',  targets: [2000, 2500, 3000],        label: 'Hits' },
+    { cat: 'strikeouts', group: 'pitching', targets: [2000, 2500, 3000],        label: 'K' },
+    { cat: 'wins',       group: 'pitching', targets: [200, 250, 300],           label: 'Wins' },
+    { cat: 'saves',      group: 'pitching', targets: [300, 400, 500],           label: 'Saves' },
   ];
 
+  // Step 1: gather candidates from career leaders (includes retired players)
+  const candidates = [];
   await Promise.all(cats.map(async ({ cat, group, targets, label }) => {
     const d = await fetchJSON(
-      `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=${cat}&statType=career&season=${new Date().getFullYear()}&limit=60&sportId=1&statGroup=${group}&playerPool=all`
+      `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=${cat}&statType=career&season=${season}&limit=80&sportId=1&statGroup=${group}&playerPool=all`
     );
     const leaders = d?.leagueLeaders?.[0]?.leaders ?? [];
     for (const l of leaders) {
       const val = parseInt(l.value, 10);
-      if (isNaN(val)) continue;
+      if (isNaN(val) || !l.person?.id) continue;
       for (const t of targets) {
         const remaining = t - val;
-        // Within reach this season: 1–35 away (HR/wins) or 1–250 (hits/K)
-        const window = (label === 'HR' || label === 'Wins') ? 35 : 250;
+        const window = (label === 'HR' || label === 'Wins' || label === 'Saves') ? 30 : 200;
         if (remaining > 0 && remaining <= window) {
-          results.push({
-            playerId: l.person?.id, name: l.person?.fullName,
+          candidates.push({
+            playerId: l.person.id, name: l.person.fullName,
             team: l.team?.abbreviation ?? '',
             current: val, target: t, remaining, label,
           });
-          break; // only nearest milestone per player per stat
+          break;
         }
       }
     }
   }));
 
-  // Sort by % proximity to milestone
-  results.sort((a, b) => (a.remaining / a.target) - (b.remaining / b.target));
-  return results.slice(0, 8);
+  if (candidates.length === 0) return [];
+
+  // Step 2: verify each candidate is an ACTIVE player.
+  // MLB people endpoint returns `active` boolean + currentTeam only for active players.
+  const uniqueIds = [...new Set(candidates.map(c => c.playerId))];
+  const activeMap = {};
+  await Promise.all(uniqueIds.map(async (pid) => {
+    const p = await fetchJSON(`https://statsapi.mlb.com/api/v1/people/${pid}`);
+    const person = p?.people?.[0];
+    if (!person) { activeMap[pid] = false; return; }
+    // Must be flagged active AND have a current team (retired players lack this)
+    activeMap[pid] = person.active === true && !!person.currentTeam?.id;
+  }));
+
+  // Step 3: keep only active players, and confirm they've actually played THIS season.
+  // Pull current-season game counts to drop players who are active-rostered but injured/not playing.
+  const activeCandidates = candidates.filter(c => activeMap[c.playerId]);
+
+  const verified = [];
+  await Promise.all(activeCandidates.map(async (c) => {
+    const grp = (c.label === 'K' || c.label === 'Wins' || c.label === 'Saves') ? 'pitching' : 'hitting';
+    const s = await fetchJSON(
+      `https://statsapi.mlb.com/api/v1/people/${c.playerId}/stats?stats=season&season=${season}&group=${grp}`
+    );
+    const games = parseInt(s?.stats?.[0]?.splits?.[0]?.stat?.gamesPlayed ?? 0, 10);
+    // Must have appeared in at least 1 game this season to be "on pace"
+    if (games > 0) {
+      // Refresh team from current-season split if available
+      const teamAbbr = s?.stats?.[0]?.splits?.[0]?.team?.abbreviation ?? c.team;
+      verified.push({ ...c, team: teamAbbr, gamesThisSeason: games });
+    }
+  }));
+
+  // Sort by closest to milestone (fewest remaining as % of target)
+  verified.sort((a, b) => (a.remaining / a.target) - (b.remaining / b.target));
+  return verified.slice(0, 8);
 }
 
 // ── #5 Hottest hitter (reuse hot-cold logic, simplified) ───────────────────
