@@ -157,8 +157,9 @@ export default async function handler(req, res) {
       const batters = bs.teams?.[teamSide]?.batters ?? [];
       const players  = bs.teams?.[teamSide]?.players ?? {};
       return batters.map(id => {
-        const p    = players[`ID${id}`] ?? {};
-        const stat = p.stats?.batting ?? {};
+        const p       = players[`ID${id}`] ?? {};
+        const stat    = p.stats?.batting ?? {};
+        const season  = p.seasonStats?.batting ?? {};
         return {
           id,
           name:       p.person?.fullName ?? '—',
@@ -170,7 +171,7 @@ export default async function handler(req, res) {
           rbi:  stat.rbi            ?? 0,
           bb:   stat.baseOnBalls    ?? 0,
           k:    stat.strikeOuts     ?? 0,
-          avg:  stat.avg            ?? '—',
+          avg:  season.avg          ?? '—',  // SEASON average, not single-game
           hr:   stat.homeRuns       ?? 0,
           lob:  stat.leftOnBase     ?? 0,
           sb:   stat.stolenBases    ?? 0,
@@ -184,8 +185,9 @@ export default async function handler(req, res) {
       const pitchers = bs.teams?.[teamSide]?.pitchers ?? [];
       const players   = bs.teams?.[teamSide]?.players ?? {};
       return pitchers.map(id => {
-        const p    = players[`ID${id}`] ?? {};
-        const stat = p.stats?.pitching  ?? {};
+        const p       = players[`ID${id}`] ?? {};
+        const stat    = p.stats?.pitching  ?? {};
+        const season  = p.seasonStats?.pitching ?? {};
         return {
           id,
           name:  p.person?.fullName ?? '—',
@@ -196,7 +198,7 @@ export default async function handler(req, res) {
           bb:    stat.baseOnBalls    ?? 0,
           k:     stat.strikeOuts     ?? 0,
           hr:    stat.homeRuns       ?? 0,
-          era:   stat.era            ?? '—',
+          era:   season.era          ?? '—',  // SEASON ERA, not single-game
           pc:    stat.pitchesThrown  ?? 0,
           strikes: stat.strikes      ?? 0,
           note:  p.gameStatus?.isCurrentPitcher ? '▶' : '',
