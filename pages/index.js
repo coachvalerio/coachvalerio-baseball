@@ -216,6 +216,9 @@ export default function Home() {
   const [spotlight, setSpotlight]   = useState(null);
   const [hotCold, setHotCold]       = useState(null);
   const [loadingHC, setLoadingHC]   = useState(true);
+  const [dailyCard, setDailyCard]   = useState(null);
+  const [mySquad, setMySquad]       = useState([]);
+  const [accuracy, setAccuracy]     = useState(null);
   const router  = useRouter();
   const SEASON  = getCurrentSeason();
 
@@ -229,6 +232,24 @@ export default function Home() {
 
   useEffect(() => {
     fetch('/api/hot-cold').then(r=>r.json()).then(d=>{ setHotCold(d); setLoadingHC(false); }).catch(()=>setLoadingHC(false));
+  }, []);
+
+  // ── #5/#11/#12 Daily Lineup Card data ──
+  useEffect(() => {
+    fetch('/api/daily-card').then(r=>r.json()).then(setDailyCard).catch(()=>{});
+  }, []);
+
+  // ── #6 Prediction accuracy record ──
+  useEffect(() => {
+    fetch('/api/accuracy').then(r=>r.json()).then(d=>{ if(d.total > 0) setAccuracy(d); }).catch(()=>{});
+  }, []);
+
+  // ── #8 My Squad watchlist (localStorage) ──
+  useEffect(() => {
+    try {
+      const squad = JSON.parse(localStorage.getItem('coach_squad') ?? '[]');
+      setMySquad(squad);
+    } catch {}
   }, []);
 
   let st;
@@ -280,7 +301,7 @@ export default function Home() {
         <a href="/" style={s.logo}>COACH<span style={{color:'#00c2a8'}}>.</span></a>
         <div style={s.navLinks}>
           {[['/', 'Home'],['/scoreboard','Scoreboard'],['/teams','Teams'],['/transactions','Transactions'],
-            ['/compare','Compare'],['/trade','Trade AI'],['/odds-board','Odds Board'],[`/leaders?season=${SEASON}`,'Leaders']
+            ['/compare','Compare'],['/matchup','Matchup'],['/trade','Trade AI'],['/odds-board','Odds Board'],[`/leaders?season=${SEASON}`,'Leaders']
           ].map(([href,label])=>(
             <a key={href} href={href} style={s.navLink}>{label}</a>
           ))}
@@ -350,6 +371,118 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* ── #8 MY SQUAD — starred players strip ── */}
+      {mySquad.length > 0 && (
+        <div style={s.section}>
+          <div style={s.sectionInner}>
+            <div style={{ ...s.secLabel, color:'#f5de0a', borderBottomColor:'#f5de0a33' }}>
+              ⭐ MY SQUAD <span style={{ color:'#3a3f52', fontSize:'.6rem', letterSpacing:'.1em', fontWeight:400, marginLeft:'.5rem' }}>YOUR WATCHLIST</span>
+            </div>
+            <div style={{ display:'flex', gap:'.75rem', overflowX:'auto', paddingBottom:'.5rem' }}>
+              {mySquad.map(p => (
+                <div key={p.id} onClick={() => router.push(`/players/${p.id}`)}
+                  style={{ flexShrink:0, width:'120px', background:'#0d1117', border:'1px solid #1e2028', borderRadius:'10px', padding:'.75rem', cursor:'pointer', textAlign:'center', transition:'border-color .15s' }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='#f5de0a'}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor='#1e2028'}>
+                  <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${p.id}/headshot/67/current`}
+                    width={56} height={56} style={{ borderRadius:'50%', objectFit:'cover', border:'2px solid #f5de0a44' }} />
+                  <div style={{ fontFamily:"'Inter',sans-serif", fontSize:'.72rem', fontWeight:600, color:'#e8ebf5', marginTop:'.4rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                  {p.team && <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.6rem', color:'#5c6070', letterSpacing:'.08em', marginTop:'2px' }}>{p.team}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── #5 TODAY'S LINEUP CARD ── */}
+      {dailyCard && (dailyCard.matchup || dailyCard.milestones?.length > 0 || dailyCard.outliers?.luckCandidates?.length > 0) && (
+        <div style={s.section}>
+          <div style={s.sectionInner}>
+            <div style={{ ...s.secLabel, color:'#00c2a8', borderBottomColor:'#00c2a833', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span>📋 TODAY'S LINEUP CARD <span style={{ color:'#3a3f52', fontSize:'.6rem', letterSpacing:'.1em', fontWeight:400, marginLeft:'.5rem' }}>{dailyCard.date}</span></span>
+              {accuracy && (
+                <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', fontWeight:700, letterSpacing:'.08em', color: accuracy.pct >= 55 ? '#2ed47a' : '#f5a623', background:'#080c12', border:'1px solid #1e2028', borderRadius:'6px', padding:'.25rem .6rem' }}>
+                  COACH IS {accuracy.wins}–{accuracy.losses} ({accuracy.pct}%) THIS SEASON
+                </span>
+              )}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:'1rem' }}>
+
+              {/* Best pitching matchup */}
+              {dailyCard.matchup && (
+                <div onClick={() => router.push(`/games/${dailyCard.matchup.gamePk}`)}
+                  style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'12px', padding:'1rem', cursor:'pointer', transition:'border-color .15s' }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='#00c2a8'}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor='#1e2028'}>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.14em', color:'#00c2a8', marginBottom:'.6rem' }}>
+                    ⚔ BEST MOUND MATCHUP
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem' }}>
+                    {[dailyCard.matchup.pitcherAway, dailyCard.matchup.pitcherHome].map((p, i) => (
+                      <div key={i} style={{ textAlign:'center', flex:1 }}>
+                        <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_100,q_auto:best/v1/people/${p.id}/headshot/67/current`}
+                          width={52} height={52} style={{ borderRadius:'50%', objectFit:'cover' }} />
+                        <div style={{ fontFamily:"'Inter',sans-serif", fontSize:'.72rem', fontWeight:600, color:'#e8ebf5', marginTop:'.3rem' }}>{p.name}</div>
+                        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.85rem', color:'#00c2a8' }}>{p.era} ERA</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.65rem', color:'#5c6070', textAlign:'center', marginTop:'.6rem', letterSpacing:'.08em' }}>
+                    {dailyCard.matchup.awayAbbr} @ {dailyCard.matchup.homeAbbr} · {dailyCard.matchup.venue}
+                  </div>
+                </div>
+              )}
+
+              {/* #11 Luck candidates */}
+              {dailyCard.outliers?.luckCandidates?.length > 0 && (
+                <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'12px', padding:'1rem' }}>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.14em', color:'#c478f5', marginBottom:'.6rem' }}>
+                    🎲 LUCK WATCH <span style={{ color:'#3a3f52', fontWeight:400 }}>xBA vs BA GAP</span>
+                  </div>
+                  {dailyCard.outliers.luckCandidates.slice(0,4).map((p, i) => (
+                    <div key={i} onClick={() => p.playerId && router.push(`/players/${p.playerId}`)}
+                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.35rem 0', borderTop: i>0?'1px solid #12161e':'none', cursor:'pointer' }}>
+                      <div>
+                        <div style={{ fontFamily:"'Inter',sans-serif", fontSize:'.74rem', fontWeight:600, color:'#e8ebf5' }}>{p.name}</div>
+                        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color: p.tag.includes('UNLUCKY') ? '#2ed47a' : '#ff5555', letterSpacing:'.08em' }}>{p.tag}</div>
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.8rem', color:'#c8cce0' }}>{p.ba} → {p.xba}</div>
+                        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070' }}>BA → xBA</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* #12 Milestone watch */}
+              {dailyCard.milestones?.length > 0 && (
+                <div style={{ background:'#0d1117', border:'1px solid #1e2028', borderRadius:'12px', padding:'1rem' }}>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.62rem', fontWeight:700, letterSpacing:'.14em', color:'#f5a623', marginBottom:'.6rem' }}>
+                    🏆 MILESTONE WATCH
+                  </div>
+                  {dailyCard.milestones.slice(0,4).map((m, i) => (
+                    <div key={i} onClick={() => m.playerId && router.push(`/players/${m.playerId}`)}
+                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.35rem 0', borderTop: i>0?'1px solid #12161e':'none', cursor:'pointer' }}>
+                      <div>
+                        <div style={{ fontFamily:"'Inter',sans-serif", fontSize:'.74rem', fontWeight:600, color:'#e8ebf5' }}>{m.name}</div>
+                        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070', letterSpacing:'.08em' }}>{m.team}</div>
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontFamily:"'Anton',sans-serif", fontSize:'.8rem', color:'#f5a623' }}>{m.remaining} away</div>
+                        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:'.58rem', color:'#5c6070' }}>{m.current} / {m.target} {m.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HOT / COLD — last 10 games */}
       <div style={s.section}>

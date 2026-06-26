@@ -239,6 +239,16 @@ export default function Compare() {
   const [activeId1, setActive1] = useState(null);
   const [activeId2, setActive2] = useState(null);
   const [compared, setCompared] = useState(false);
+  const router = useRouter();
+
+  // ── #7 Shareable compare links: hydrate from ?p1=&p2= on load ──
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { p1: qp1, p2: qp2 } = router.query;
+    if (qp1 && /^\d+$/.test(qp1)) { setId1(parseInt(qp1)); setActive1(parseInt(qp1)); }
+    if (qp2 && /^\d+$/.test(qp2)) { setId2(parseInt(qp2)); setActive2(parseInt(qp2)); }
+    if (qp1 && qp2) setCompared(true);
+  }, [router.isReady]);
 
   const p1 = usePlayerData(activeId1);
   const p2 = usePlayerData(activeId2);
@@ -248,6 +258,8 @@ export default function Compare() {
     setActive1(id1);
     setActive2(id2);
     setCompared(true);
+    // ── Push state to URL so the comparison is linkable/bookmarkable ──
+    router.replace({ pathname: '/compare', query: { p1: id1, p2: id2 } }, undefined, { shallow: true });
   }
 
   const SEASON = getCurrentSeason();
