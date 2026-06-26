@@ -617,19 +617,21 @@ export default function Home() {
                   <tbody>
                     {(leaders[activeLeader]??[]).slice(0,10).map((row,i)=>(
                       <tr key={i} className="leader-row"
-                        style={{borderBottom:'1px solid rgba(30,32,40,.7)',cursor:'pointer'}}
-                        onClick={()=>router.push(`/players/${row.person?.id}`)}>
+                        style={{borderBottom:'1px solid rgba(30,32,40,.7)',cursor: row.playerId ? 'pointer' : 'default'}}
+                        onClick={()=> row.playerId && router.push(`/players/${row.playerId}`)}>
                         <td style={s.ltd}>
                           <span style={{...s.rank,background:i===0?'#f5a623':i===1?'#C4CED4':i===2?'#CD7F32':'#1e2028',color:i<3?'#050608':'#5c6070'}}>{i+1}</span>
                         </td>
                         <td style={{...s.ltd,textAlign:'left'}}>
                           <div style={{display:'flex',alignItems:'center',gap:'.6rem'}}>
-                            <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${row.person?.id}/headshot/67/current`}
-                              alt="" style={s.leaderAvatar} />
-                            <span style={{color:'#f0f2f8',fontWeight:600}}>{row.person?.fullName??'—'}</span>
+                            {row.playerId && (
+                              <img src={`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_60,q_auto:best/v1/people/${row.playerId}/headshot/67/current`}
+                                alt="" style={s.leaderAvatar} />
+                            )}
+                            <span style={{color:'#f0f2f8',fontWeight:600}}>{row.name??'—'}</span>
                           </div>
                         </td>
-                        <td style={{...s.ltd,textAlign:'left',color:'#5c6070',fontSize:'.8rem'}}>{row.team?.name??'—'}</td>
+                        <td style={{...s.ltd,textAlign:'left',color:'#5c6070',fontSize:'.8rem'}}>{row.team??'—'}</td>
                         <td style={{...s.ltd,textAlign:'right',color:'#00c2a8',fontFamily:"'Barlow Condensed',sans-serif",fontSize:'1.1rem',fontWeight:700}}>{row.value??'—'}</td>
                       </tr>
                     ))}
