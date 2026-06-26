@@ -6,6 +6,26 @@
 
 const TIMEOUT = (ms) => AbortSignal.timeout(ms);
 
+// ── "Today" in baseball terms: Eastern time, rolling over at 4:00 AM ET ──
+// Before 4 AM ET the slate still belongs to the previous calendar day
+// (covers West Coast games that end after midnight Eastern). This also
+// fixes the UTC bug where evening ET = next-day UTC.
+function getBaseballToday() {
+  const now = new Date();
+  // Get current time as it is in America/New_York
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const et = new Date(etString);
+  // If it's before 4 AM ET, treat it as the previous day
+  if (et.getHours() < 4) {
+    et.setDate(et.getDate() - 1);
+  }
+  // Format YYYY-MM-DD from the Eastern date parts
+  const y = et.getFullYear();
+  const m = String(et.getMonth() + 1).padStart(2, '0');
+  const d = String(et.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 // ── Milestone thresholds ──────────────────────────────────────────────────
 const MILESTONES = {
   hitting: [
@@ -33,7 +53,7 @@ async function fetchJSON(url, ms = 8000) {
 
 // ── #5 Today's best pitching matchup ──────────────────────────────────────
 async function getBestMatchup() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getBaseballToday();
   const sched = await fetchJSON(
     `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher(stats(group=pitching,type=season))`
   );
@@ -199,7 +219,9 @@ async function getHottestHitter() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=600');
+  // 10-min edge cache keeps it fresh enough that the 4 AM ET rollover
+  // is reflected within minutes, without hammering the APIs.
+  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
   const season = new Date().getFullYear();
 
   const [matchup, outliers, milestones, hottest] = await Promise.all([
@@ -210,7 +232,7 @@ export default async function handler(req, res) {
   ]);
 
   res.status(200).json({
-    date: new Date().toISOString().slice(0, 10),
+    date: getBaseballToday(),
     matchup, outliers, milestones, hottest,
   });
 }
